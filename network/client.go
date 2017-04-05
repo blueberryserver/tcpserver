@@ -1,9 +1,5 @@
 package network
 
-import (
-	"fmt"
-)
-
 type _Client struct {
 	_client *NetClient
 }
@@ -14,8 +10,7 @@ func NewClient() *_Client {
 	}
 }
 
-func (client *_Client) connect(net string, addr string) error {
-	fmt.Println("connect")
+func (client *_Client) Connect(net string, addr string) error {
 	err := client._client.Connect(net, addr)
 	if err != nil {
 		return err

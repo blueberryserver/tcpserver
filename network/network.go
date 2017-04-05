@@ -86,7 +86,7 @@ func (server *NetServer) Listen() error {
 
 func (server *NetServer) handlerConnect(session *Session) {
 	// 연결 처리
-	//fmt.Printf("server connect sid:%d\r\n", session._id)
+	fmt.Printf("accept session sid:%d\r\n", session._id)
 	if server._recvHandler != nil {
 		go server._recvHandler.(func(*NetServer, *Session))(server, session)
 	} else {
@@ -178,7 +178,7 @@ func (client *NetClient) Connected() bool {
 
 func (client *NetClient) handlerConnect(session *Session) {
 	// 연결 처리
-	fmt.Printf("connect server \r\n")
+	fmt.Println("connection complate")
 	if client._recvHandler != nil {
 		go client._recvHandler.(func(*NetClient, *Session))(client, session)
 	} else {

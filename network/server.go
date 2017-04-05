@@ -1,7 +1,6 @@
 package network
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -22,19 +21,13 @@ func SetGlobalNetServer(server *_Server) {
 }
 
 func NewServer(net string, addr string) *_Server {
-
 	return &_Server{
 		//_sessions: make(_SessionMap),
 		_server: NewNetServer(net, addr, nil, nil),
 	}
 }
 
-func (server *_Server) listen() error {
-	//	err := server._server.listen()
-	//	if err != nil {
-	//		return err
-	//	}
-	fmt.Println("start tcp server")
+func (server *_Server) Listen() error {
 	go server._server.Listen()
 	return nil
 }
