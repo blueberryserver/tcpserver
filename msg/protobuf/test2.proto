@@ -1,0 +1,13 @@
+syntax="proto2";
+import "test.proto";
+package msg;
+
+
+// sample mseeage
+message PingReq {
+	required uint32 dummy = 1;
+}
+
+message PongAns {
+	required ErrorCode err = 1;	
+}
