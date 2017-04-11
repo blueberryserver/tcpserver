@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	_ "strconv"
 	"time"
 
 	redis "gopkg.in/redis.v4"
@@ -115,12 +116,12 @@ func redisTest() {
 
 	// add user, room dummy data for redis
 	// selectdb 1
-	//pipe := client.Pipeline()
-	//defer pipe.Close()
-	//pipe.Select(1)
-	//_, _ = pipe.Exec()
+	// pipe := client.Pipeline()
+	// defer pipe.Close()
+	// pipe.Select(1)
+	// _, _ = pipe.Exec()
 
-	// user obj info
+	// // user obj info
 	// fid := 1234
 	// result, err := client.HSet("blue_server.user.name", strconv.Itoa(fid), "noom").Result()
 	// _, _ = client.HSet("blue_server.user.hashkey", strconv.Itoa(fid), "1234%^&").Result()
@@ -132,13 +133,13 @@ func redisTest() {
 	// _, _ = client.HSet("blue_server.user.vc.gold", strconv.Itoa(fid), "99999").Result()
 	// fmt.Println(result, err)
 
-	// selectdb 2
-	//pipe = client.Pipeline()
-	//pipe.Select(2)
-	//_, _ = pipe.Exec()
+	// // selectdb 2
+	// pipe = client.Pipeline()
+	// pipe.Select(2)
+	// _, _ = pipe.Exec()
 
 	// rid := 1
-	// result, err := client.HSet("blue_server.room.type", strconv.Itoa(rid), "NORMAL").Result()
+	// result, err = client.HSet("blue_server.room.type", strconv.Itoa(rid), "NORMAL").Result()
 	// _, _ = client.HSet("blue_server.room.status", strconv.Itoa(rid), "NONE").Result()
 	// _, _ = client.HSet("blue_server.room.create.time", strconv.Itoa(rid), "2017-04-11 11:46:12").Result()
 	// _, _ = client.HSet("blue_server.room.member", strconv.Itoa(rid), "[1234]").Result()
