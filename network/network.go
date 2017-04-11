@@ -26,7 +26,7 @@ type _MsgHandler interface {
 	execute(*Session, []byte, uint16) bool
 }
 
-type _MsgHandlerMap map[uint16]_MsgHandler
+type _MsgHandlerMap map[int32]_MsgHandler
 
 //net server
 type NetServer struct {
@@ -130,7 +130,7 @@ func (server *NetServer) packetParsing(session *Session, data []byte, bytes int)
 	msgId := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
 
-	server._handler[msgId].execute(session, body, length)
+	server._handler[int32(msgId)].execute(session, body, length)
 }
 
 //net client
@@ -210,7 +210,7 @@ func (client *NetClient) packetParsing(session *Session, data []byte, bytes int)
 	msgId := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
 
-	client._handler[msgId].execute(session, body, length-4)
+	client._handler[int32(msgId)].execute(session, body, length)
 }
 
 func (client *NetClient) SendPacket(data []byte) {
@@ -222,12 +222,12 @@ func (client *NetClient) Close() {
 	client._session = nil
 }
 
-func (session *Session) SendPacket(msgId uint16, data []byte, bytes uint16) error {
+func (session *Session) SendPacket(msgId int32, data []byte, bytes uint16) error {
 	buff := make([]byte, 4096)
 	var msgLen uint16
 	msgLen = bytes + 4
 	binary.LittleEndian.PutUint16(buff[:], msgLen)
-	binary.LittleEndian.PutUint16(buff[2:], msgId)
+	binary.LittleEndian.PutUint16(buff[2:], uint16(msgId))
 	copy(buff[4:], data)
 	session._conn.Write(buff[:msgLen])
 

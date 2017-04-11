@@ -1,6 +1,7 @@
 package network
 
 import (
+	"errors"
 	"sync"
 )
 
@@ -32,11 +33,11 @@ func (server *_Server) Listen() error {
 	return nil
 }
 
-// func (server *_Server) addMsgHandler(msgId uint16, handler _MsgHandler) error {
-// 	if server._server._handler[msgId] != nil {
-// 		return errors.New("already handler binding")
-// 	}
+func (server *_Server) AddMsgHandler(msgId int32, handler _MsgHandler) error {
+	if server._server._handler[msgId] != nil {
+		return errors.New("already handler binding")
+	}
 
-// 	server._server._handler[msgId] = handler
-// 	return nil
-// }
+	server._server._handler[msgId] = handler
+	return nil
+}

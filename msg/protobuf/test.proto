@@ -3,7 +3,7 @@ package msg;
 
 // sample type
 enum TestType {
-	TYPE_1 = 0;								// ���� ������ ��ǥ
+	TYPE_1 = 0;
 	TYPE_2 = 1;
 	TYPE_3 = 2;
 }
@@ -13,6 +13,20 @@ enum ErrorCode {
 	ERR_SUCCESS = 0;
 	ERR_LOGIN_FAIL = 1;
 	ERR_ARGUMENT_FAIL = 2;
+}
+
+enum Msg_Id {
+	Login_Req = 1;			// 로그인
+	Login_Ans = 2;
+
+	Enter_Ch_Req = 3;		// 채널 입장
+	Enter_Ch_Ans = 4;
+
+	Enter_Rm_Req = 5;		// 방 입장
+	Enter_Rm_Ans = 6;
+
+	Ping_Req = 11;			// 핑 체크
+	Pong_Ans = 12;
 }
 
 
@@ -42,5 +56,21 @@ message LoginReq {
 }
 
 message LoginAns {
+	required ErrorCode err = 1;	
+}
+
+message EnterChReq {
+	required uint32 chNo = 1;		// 채널 넘버(0: 자동 선택)
+}
+
+message EnterChAns {
+	required ErrorCode err = 1;	
+}
+
+message EnterRmReq {
+	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
+}
+
+message EnterRmAns {
 	required ErrorCode err = 1;	
 }
