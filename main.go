@@ -14,9 +14,18 @@ import (
 )
 
 func main() {
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     "127.0.0.1:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	network.SetRedisClient(client)
+
 	//protobufTest()
-	//netTest()
-	redisTest()
+	netTest()
+	//redisTest()
 	// 입력 대기
 	var s string
 	fmt.Scanf("%s", &s)
@@ -29,8 +38,9 @@ func netTest() {
 	server := network.NewServer("tcp", ":20202")
 
 	// ping req 처리 핸들러 등록
-	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], network.GetHandler_Req_Ping(msg.Msg_Id_value["Ping_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], network.GetHandler_Req_Login(msg.Msg_Id_value["Login_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], network.GetHandlerReqPing(msg.Msg_Id_value["Ping_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], network.GetHandlerReqLogin(msg.Msg_Id_value["Login_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], network.GetHandlerReqRelay(msg.Msg_Id_value["Relay_Req"]))
 
 	err := server.Listen()
 	if err != nil {
@@ -44,7 +54,10 @@ func netTest() {
 	// 클라이언트 접속 요청
 	client := network.NewClient()
 	// pong Ans 처리 핸들러 등록
-	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], network.GetHandler_Ans_Pong(msg.Msg_Id_value["Pong_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], network.GetHandlerAnsPong(msg.Msg_Id_value["Pong_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], network.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], network.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], network.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
 
 	// 연결 시도
 	err = client.Connect("tcp", ":20202")
@@ -54,12 +67,45 @@ func netTest() {
 	}
 
 	// 1초간 대기
-	time.Sleep(1 * time.Second)
+	{
+		time.Sleep(1 * time.Second)
 
-	buff := make([]byte, 4096)
-	str := "hello world"
-	copy(buff, str)
-	client.SendPacket(msg.Msg_Id_value["Ping_Req"], buff[:len(str)], uint16(len(str)))
+		buff := make([]byte, 4096)
+		str := "hello world"
+		copy(buff, str)
+		client.SendPacket(msg.Msg_Id_value["Ping_Req"], buff[:len(str)], uint16(len(str)))
+	}
+
+	{
+		m := &msg.LoginReq{
+			Id: proto.String("noom"),
+		}
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Login_Req"], data, uint16(len(data)))
+	}
+
+	{
+		// relay data
+		m := &msg.RelayReq{
+			RmNo: proto.Uint32(1),
+			Data: proto.String("data:1723849, contens: 387438"),
+		}
+
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Relay_Req"], data, uint16(len(data)))
+	}
 }
 
 func protobufTest() {

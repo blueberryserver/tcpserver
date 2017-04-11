@@ -27,6 +27,10 @@ enum Msg_Id {
 
 	Ping_Req = 11;			// 핑 체크
 	Pong_Ans = 12;
+
+	Relay_Req = 101;		// 릴레이 
+	Relay_Ans = 102;
+	Relay_Not = 103;		// 릴레이 통보
 }
 
 
@@ -56,7 +60,14 @@ message LoginReq {
 }
 
 message LoginAns {
-	required ErrorCode err = 1;	
+	required ErrorCode err = 1;
+
+	optional uint32 id = 2;
+	optional string name = 3;
+	optional uint32 platform = 4;
+	optional uint32 gem = 5;
+	optional uint32 gold = 6;
+	optional string secKey = 7;
 }
 
 message EnterChReq {
@@ -73,4 +84,19 @@ message EnterRmReq {
 
 message EnterRmAns {
 	required ErrorCode err = 1;	
+}
+
+
+message RelayReq {
+	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
+	optional string data = 2;
+}
+
+message RelayAns {
+	required ErrorCode err = 1;	
+}
+
+message RelayNot {
+	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
+	optional string data = 2;
 }

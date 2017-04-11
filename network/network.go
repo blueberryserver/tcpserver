@@ -130,7 +130,7 @@ func (server *NetServer) packetParsing(session *Session, data []byte, bytes int)
 	msgId := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
 
-	server._handler[int32(msgId)].execute(session, body, length)
+	server._handler[int32(msgId)].execute(session, body, length-4)
 }
 
 //net client
@@ -210,7 +210,7 @@ func (client *NetClient) packetParsing(session *Session, data []byte, bytes int)
 	msgId := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
 
-	client._handler[int32(msgId)].execute(session, body, length)
+	client._handler[int32(msgId)].execute(session, body, length-4)
 }
 
 func (client *NetClient) SendPacket(data []byte) {

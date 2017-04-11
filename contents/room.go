@@ -87,7 +87,7 @@ func (rm Room) SetRoom(rid uint32, rtype RoomType) {
 
 // add user to room
 func (rm Room) AddMember(user User) {
-	rm.members[user.uID] = user
+	rm.members[user.ID] = user
 }
 
 // load redis db
