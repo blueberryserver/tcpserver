@@ -7,6 +7,7 @@ import (
 
 	"fmt"
 
+	"github.com/blueberryserver/tcpserver/network"
 	"gopkg.in/redis.v4"
 )
 
@@ -19,8 +20,11 @@ type User struct {
 	VcGold     uint32
 	Key        string
 	Status     UserStatus
+	RmNo       uint32
 	LoginTime  time.Time
 	CreateTime time.Time
+
+	Session *network.Session
 }
 
 // user status
@@ -44,22 +48,22 @@ var UserStatusValue = map[string]UserStatus{
 	"LOGOFF": 2,
 }
 
-// user status
+// user platform
 type UserPlatform uint32
 
-// user status
+// user platform
 const (
 	_IOS     UserPlatform = 0
 	_Android UserPlatform = 1
 )
 
-// room status
+// room platform
 var UserPlatformName = map[UserPlatform]string{
 	1: "ANDROID",
 	0: "IOS",
 }
 
-// room status
+// room platform
 var UserPlatformValue = map[string]UserPlatform{
 	"ANDROID": 1,
 	"IOS":     0,
@@ -104,6 +108,10 @@ func LoadUser(id uint32, client *redis.Client) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
+	rmNo, err := client.HGet("blue_server.user.room.no", userID).Result()
+	if err != nil {
+		return User{}, err
+	}
 	loginTime, err := client.HGet("blue_server.user.login.time", userID).Result()
 	if err != nil {
 		return User{}, err
@@ -138,6 +146,10 @@ func LoadUser(id uint32, client *redis.Client) (User, error) {
 		return User{}, err
 	}
 	iStatus := UserStatusValue[loginStatus]
+	iRmNo, err := strconv.Atoi(rmNo)
+	if err != nil {
+		return User{}, err
+	}
 
 	return User{ID: id,
 		Name:       name,
@@ -146,8 +158,10 @@ func LoadUser(id uint32, client *redis.Client) (User, error) {
 		VcGold:     uint32(iGold),
 		Key:        hashkey,
 		Status:     iStatus,
+		RmNo:       uint32(iRmNo),
 		LoginTime:  login,
-		CreateTime: create}, nil
+		CreateTime: create,
+		Session:    nil}, nil
 }
 
 // save redis user
@@ -214,6 +228,7 @@ func (u User) SetID(id uint32) {
 
 // to string
 func (u User) ToString() string {
-	return fmt.Sprintf("%d %s %s %s %d %d %s %s", u.ID, UserPlatformName[u.Platform], u.Name, UserStatusName[u.Status], u.VcGem, u.VcGold,
+	return fmt.Sprintf("ID:%d Platform:%s Name:%s Status:%s Gem:%d Gold:%d Create Time:%s Login Time:%s",
+		u.ID, UserPlatformName[u.Platform], u.Name, UserStatusName[u.Status], u.VcGem, u.VcGold,
 		u.CreateTime.Format("2006-01-02 15:04:05"), u.LoginTime.Format("2006-01-02 15:04:05"))
 }

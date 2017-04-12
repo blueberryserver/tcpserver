@@ -21,7 +21,7 @@ func main() {
 		DB:       0,  // use default DB
 	})
 
-	network.SetRedisClient(client)
+	contents.SetRedisClient(client)
 
 	//protobufTest()
 	netTest()
@@ -38,9 +38,9 @@ func netTest() {
 	server := network.NewServer("tcp", ":20202")
 
 	// ping req 처리 핸들러 등록
-	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], network.GetHandlerReqPing(msg.Msg_Id_value["Ping_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], network.GetHandlerReqLogin(msg.Msg_Id_value["Login_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], network.GetHandlerReqRelay(msg.Msg_Id_value["Relay_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], contents.GetHandlerReqPing(msg.Msg_Id_value["Ping_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], contents.GetHandlerReqLogin(msg.Msg_Id_value["Login_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], contents.GetHandlerReqRelay(msg.Msg_Id_value["Relay_Req"]))
 
 	err := server.Listen()
 	if err != nil {
@@ -54,10 +54,10 @@ func netTest() {
 	// 클라이언트 접속 요청
 	client := network.NewClient()
 	// pong Ans 처리 핸들러 등록
-	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], network.GetHandlerAnsPong(msg.Msg_Id_value["Pong_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], network.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], network.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], network.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong(msg.Msg_Id_value["Pong_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
 
 	// 연결 시도
 	err = client.Connect("tcp", ":20202")
@@ -106,6 +106,8 @@ func netTest() {
 		time.Sleep(1 * time.Second)
 		client.SendPacket(msg.Msg_Id_value["Relay_Req"], data, uint16(len(data)))
 	}
+
+	client.Close()
 }
 
 func protobufTest() {

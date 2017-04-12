@@ -23,7 +23,7 @@ func (session *Session) Close() {
 type _SessionMap map[uint16]*Session
 
 type _MsgHandler interface {
-	execute(*Session, []byte, uint16) bool
+	Execute(*Session, []byte, uint16) bool
 }
 
 type _MsgHandlerMap map[int32]_MsgHandler
@@ -32,7 +32,7 @@ type _MsgHandlerMap map[int32]_MsgHandler
 type NetServer struct {
 	_net            string
 	_addr           string
-	_genId          uint16
+	_genID          uint16
 	_sessions       _SessionMap
 	_handler        _MsgHandlerMap
 	_connectHandler interface{}
@@ -43,7 +43,7 @@ func NewNetServer(net string, addr string, connHandler interface{}, recvHandler 
 	return &NetServer{
 		_net:            net,
 		_addr:           addr,
-		_genId:          0,
+		_genID:          0,
 		_sessions:       make(_SessionMap),
 		_handler:        make(_MsgHandlerMap),
 		_connectHandler: connHandler,
@@ -67,9 +67,9 @@ func (server *NetServer) Listen() error {
 			continue
 		}
 
-		server._genId++
+		server._genID++
 		session := &Session{
-			_id:   server._genId,
+			_id:   server._genID,
 			_conn: conn,
 		}
 
@@ -81,7 +81,6 @@ func (server *NetServer) Listen() error {
 			go server.handlerConnect(session)
 		}
 	}
-	return nil
 }
 
 func (server *NetServer) handlerConnect(session *Session) {
@@ -94,6 +93,7 @@ func (server *NetServer) handlerConnect(session *Session) {
 	}
 }
 
+// default recv packet handler
 func RecvHandler(server *NetServer, session *Session) {
 	go server._recvHandler.(func(*NetServer, *Session))(server, session)
 }
@@ -127,10 +127,10 @@ func (server *NetServer) packetParsing(session *Session, data []byte, bytes int)
 	//msgId := binary.BigEndian.Uint16(data[2:4])
 
 	length := binary.LittleEndian.Uint16(data[:2])
-	msgId := binary.LittleEndian.Uint16(data[2:4])
+	msgID := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
 
-	server._handler[int32(msgId)].execute(session, body, length-4)
+	server._handler[int32(msgID)].Execute(session, body, length-4)
 }
 
 //net client
@@ -207,10 +207,10 @@ func (client *NetClient) packetParsing(session *Session, data []byte, bytes int)
 	//fmt.Println("NetClient Recv Data")
 	//fmt.Println(string(data[:bytes]))
 	length := binary.LittleEndian.Uint16(data[:2])
-	msgId := binary.LittleEndian.Uint16(data[2:4])
+	msgID := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
 
-	client._handler[int32(msgId)].execute(session, body, length-4)
+	client._handler[int32(msgID)].Execute(session, body, length-4)
 }
 
 func (client *NetClient) SendPacket(data []byte) {

@@ -23,7 +23,6 @@ func SetGlobalNetServer(server *_Server) {
 
 func NewServer(net string, addr string) *_Server {
 	return &_Server{
-		//_sessions: make(_SessionMap),
 		_server: NewNetServer(net, addr, nil, nil),
 	}
 }
