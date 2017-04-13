@@ -21,36 +21,55 @@ func main() {
 		DB:       0,  // use default DB
 	})
 
+	// set redis client
 	contents.SetRedisClient(client)
+	// generate channel list
+	contents.NewChannel()
+
+	// server start
+	ServerStart()
+
+	// 1초간 대기
+	time.Sleep(1 * time.Second)
+	// client connection
+	go clientConnect("noom")
+	go clientConnect("kartarn")
+	go clientConnect("blueberry")
+
+	// monitoring
+	go monitor()
+	//go clientConnectForRegist("blueberry", 0)
 
 	//protobufTest()
-	netTest()
 	//redisTest()
 	// 입력 대기
 	var s string
 	fmt.Scanf("%s", &s)
 }
 
-func netTest() {
+// server start
+func ServerStart() {
 	fmt.Printf("net test\r\n")
 	// networt test
 	// 서버 시작 리슨 요청
-	server := network.NewServer("tcp", ":20202")
+	server := network.NewServer("tcp", ":20202", contents.CloseHandler)
 
 	// ping req 처리 핸들러 등록
 	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], contents.GetHandlerReqPing(msg.Msg_Id_value["Ping_Req"]))
 	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], contents.GetHandlerReqLogin(msg.Msg_Id_value["Login_Req"]))
 	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], contents.GetHandlerReqRelay(msg.Msg_Id_value["Relay_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Req"], contents.GetHandlerReqEnterCh(msg.Msg_Id_value["Enter_Ch_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Req"], contents.GetHandlerReqEnterRm(msg.Msg_Id_value["Enter_Rm_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Regist_Req"], contents.GetHandlerReqRegist(msg.Msg_Id_value["Regist_Req"]))
 
 	err := server.Listen()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+}
 
-	// 1초간 대기
-	time.Sleep(1 * time.Second)
-
+func clientConnect(name string) {
 	// 클라이언트 접속 요청
 	client := network.NewClient()
 	// pong Ans 처리 핸들러 등록
@@ -58,9 +77,11 @@ func netTest() {
 	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
 	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
 	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
+	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh(msg.Msg_Id_value["Enter_Ch_Ans"]))
+	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm(msg.Msg_Id_value["Enter_Rm_Ans"]))
 
 	// 연결 시도
-	err = client.Connect("tcp", ":20202")
+	err := client.Connect("tcp", ":20202")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -71,14 +92,14 @@ func netTest() {
 		time.Sleep(1 * time.Second)
 
 		buff := make([]byte, 4096)
-		str := "hello world"
+		str := "ping"
 		copy(buff, str)
 		client.SendPacket(msg.Msg_Id_value["Ping_Req"], buff[:len(str)], uint16(len(str)))
 	}
 
 	{
 		m := &msg.LoginReq{
-			Id: proto.String("noom"),
+			Id: &name,
 		}
 		data, err := proto.Marshal(m)
 		if err != nil {
@@ -90,11 +111,27 @@ func netTest() {
 		client.SendPacket(msg.Msg_Id_value["Login_Req"], data, uint16(len(data)))
 	}
 
+	// {
+	// 	// relay data
+	// 	m := &msg.RelayReq{
+	// 		RmNo: proto.Uint32(1),
+	// 		Data: proto.String("{....}"),
+	// 	}
+
+	// 	data, err := proto.Marshal(m)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return
+	// 	}
+
+	// 	time.Sleep(1 * time.Second)
+	// 	client.SendPacket(msg.Msg_Id_value["Relay_Req"], data, uint16(len(data)))
+	// }
+
 	{
-		// relay data
-		m := &msg.RelayReq{
-			RmNo: proto.Uint32(1),
-			Data: proto.String("data:1723849, contens: 387438"),
+		// enter ch
+		m := &msg.EnterChReq{
+			ChNo: proto.Uint32(1),
 		}
 
 		data, err := proto.Marshal(m)
@@ -104,7 +141,133 @@ func netTest() {
 		}
 
 		time.Sleep(1 * time.Second)
-		client.SendPacket(msg.Msg_Id_value["Relay_Req"], data, uint16(len(data)))
+		client.SendPacket(msg.Msg_Id_value["Enter_Ch_Req"], data, uint16(len(data)))
+	}
+
+	{
+		// enter room
+		m := &msg.EnterRmReq{
+			RmNo: proto.Uint32(1),
+		}
+
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Enter_Rm_Req"], data, uint16(len(data)))
+	}
+
+	time.Sleep(10 * time.Second)
+	client.Close()
+}
+
+func clientConnectForRegist(name string, platform uint32) {
+	// 클라이언트 접속 요청
+	client := network.NewClient()
+	// pong Ans 처리 핸들러 등록
+	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong(msg.Msg_Id_value["Pong_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
+	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh(msg.Msg_Id_value["Enter_Ch_Ans"]))
+	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm(msg.Msg_Id_value["Enter_Rm_Ans"]))
+
+	// 연결 시도
+	err := client.Connect("tcp", ":20202")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// 1초간 대기
+	{
+		time.Sleep(1 * time.Second)
+
+		buff := make([]byte, 4096)
+		str := "ping"
+		copy(buff, str)
+		client.SendPacket(msg.Msg_Id_value["Ping_Req"], buff[:len(str)], uint16(len(str)))
+	}
+
+	{
+		m := &msg.RegistReq{
+			Name:     &name,
+			Platform: &platform,
+		}
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Regist_Req"], data, uint16(len(data)))
+	}
+
+	{
+		m := &msg.LoginReq{
+			Id: &name,
+		}
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Login_Req"], data, uint16(len(data)))
+	}
+
+	// {
+	// 	// relay data
+	// 	m := &msg.RelayReq{
+	// 		RmNo: proto.Uint32(1),
+	// 		Data: proto.String("{....}"),
+	// 	}
+
+	// 	data, err := proto.Marshal(m)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return
+	// 	}
+
+	// 	time.Sleep(1 * time.Second)
+	// 	client.SendPacket(msg.Msg_Id_value["Relay_Req"], data, uint16(len(data)))
+	// }
+
+	{
+		// enter ch
+		m := &msg.EnterChReq{
+			ChNo: proto.Uint32(1),
+		}
+
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Enter_Ch_Req"], data, uint16(len(data)))
+	}
+
+	{
+		// enter room
+		m := &msg.EnterRmReq{
+			RmNo: proto.Uint32(1),
+		}
+
+		data, err := proto.Marshal(m)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		client.SendPacket(msg.Msg_Id_value["Enter_Rm_Req"], data, uint16(len(data)))
 	}
 
 	client.Close()
@@ -203,7 +366,14 @@ func redisTest() {
 	fmt.Println(user.ToString())
 	room, err := contents.LoadRoom(1, client)
 	if err == nil {
-		room.AddMember(user)
+		room.EnterMember(user)
 		fmt.Println(room.ToString())
+	}
+}
+
+func monitor() {
+	for {
+		time.Sleep(10 * time.Second)
+		fmt.Println(contents.Monitor())
 	}
 }

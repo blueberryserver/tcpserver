@@ -37,9 +37,10 @@ type NetServer struct {
 	_handler        _MsgHandlerMap
 	_connectHandler interface{}
 	_recvHandler    interface{}
+	_closeHandler   interface{}
 }
 
-func NewNetServer(net string, addr string, connHandler interface{}, recvHandler interface{}) *NetServer {
+func NewNetServer(net string, addr string, connHandler interface{}, recvHandler interface{}, closeHandler interface{}) *NetServer {
 	return &NetServer{
 		_net:            net,
 		_addr:           addr,
@@ -48,6 +49,7 @@ func NewNetServer(net string, addr string, connHandler interface{}, recvHandler 
 		_handler:        make(_MsgHandlerMap),
 		_connectHandler: connHandler,
 		_recvHandler:    recvHandler,
+		_closeHandler:   closeHandler,
 	}
 }
 
@@ -109,6 +111,7 @@ func (server *NetServer) handlerRecv(session *Session) {
 				// 연결 종료
 				//fmt.Printf("close sid:%d\r\n", session._id)
 				session.Close()
+				server._closeHandler.(func(*Session))(session)
 				server.RemoveSession(session)
 				return
 			}
@@ -123,12 +126,14 @@ func (server *NetServer) handlerRecv(session *Session) {
 
 func (server *NetServer) packetParsing(session *Session, data []byte, bytes int) {
 	//fmt.Printf("server recv sid:%d bytes:%d\r\n", session._id, bytes)
-	//length := binary.BigEndian.Uint16(data[:2])
-	//msgId := binary.BigEndian.Uint16(data[2:4])
-
 	length := binary.LittleEndian.Uint16(data[:2])
 	msgID := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
+
+	if server._handler[int32(msgID)] == nil {
+		fmt.Println("server not find handler msgid:", msgID)
+		return
+	}
 
 	server._handler[int32(msgID)].Execute(session, body, length-4)
 }
@@ -193,8 +198,7 @@ func (client *NetClient) handlerRecv(session *Session) {
 	for {
 		n, err := session._conn.Read(data)
 		if err != nil {
-
-			fmt.Println(err)
+			//fmt.Println(err)
 			return
 		}
 
@@ -209,6 +213,11 @@ func (client *NetClient) packetParsing(session *Session, data []byte, bytes int)
 	length := binary.LittleEndian.Uint16(data[:2])
 	msgID := binary.LittleEndian.Uint16(data[2:4])
 	body := data[4:]
+
+	if client._handler[int32(msgID)] == nil {
+		fmt.Println("client not find handler msgid:", msgID)
+		return
+	}
 
 	client._handler[int32(msgID)].Execute(session, body, length-4)
 }

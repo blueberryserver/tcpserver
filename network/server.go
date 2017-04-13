@@ -15,28 +15,33 @@ type _Server struct {
 	//_sessions _SessionMap
 }
 
-var __netServet *_Server
+//
+var _netServet *_Server
 
+//
 func SetGlobalNetServer(server *_Server) {
-	__netServet = server
+	_netServet = server
 }
 
-func NewServer(net string, addr string) *_Server {
+//
+func NewServer(net string, addr string, closeHandler interface{}) *_Server {
 	return &_Server{
-		_server: NewNetServer(net, addr, nil, nil),
+		_server: NewNetServer(net, addr, nil, nil, closeHandler),
 	}
 }
 
+//
 func (server *_Server) Listen() error {
 	go server._server.Listen()
 	return nil
 }
 
-func (server *_Server) AddMsgHandler(msgId int32, handler _MsgHandler) error {
-	if server._server._handler[msgId] != nil {
+//
+func (server *_Server) AddMsgHandler(msgID int32, handler _MsgHandler) error {
+	if server._server._handler[msgID] != nil {
 		return errors.New("already handler binding")
 	}
 
-	server._server._handler[msgId] = handler
+	server._server._handler[msgID] = handler
 	return nil
 }

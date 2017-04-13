@@ -6,6 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/blueberryserver/tcpserver/msg"
+	"github.com/golang/protobuf/proto"
+
 	redis "gopkg.in/redis.v4"
 )
 
@@ -15,7 +18,7 @@ type Room struct {
 	rType   RoomType   // room type ( normal, dual ... )
 	rStatus RoomStatus // room status ( none, ready, ... )
 	// etc
-	members    map[uint32]User
+	members    map[uint32]*User
 	createTime time.Time
 }
 
@@ -76,7 +79,7 @@ func NewRoom() Room {
 		rID:     _genNo,
 		rType:   _Normal,
 		rStatus: _None,
-		members: make(map[uint32]User)}
+		members: make(map[uint32]*User)}
 }
 
 // set room info
@@ -85,51 +88,103 @@ func (rm Room) SetRoom(rid uint32, rtype RoomType) {
 	rm.rType = rtype
 }
 
-// add user to room
-func (rm Room) AddMember(user User) {
+// enter room
+func (rm Room) EnterMember(user *User) {
+
+	if len(rm.members) > 0 {
+		not := &msg.EnterRmNot{}
+		not.Names = make([]string, len(rm.members))
+		i := 0
+		for _, v := range rm.members {
+			not.Names[i] = v.Name
+			i++
+		}
+
+		nbuff, _ := proto.Marshal(not)
+		user.Session.SendPacket(msg.Msg_Id_value["Enter_Rm_Not"], nbuff, uint16(len(nbuff)))
+	}
+
+	// enter not packet broad cast
+	if len(rm.members) > 0 {
+		not := &msg.EnterRmNot{}
+		not.Names = make([]string, 1)
+		not.Names[0] = user.Name
+		nbuff, _ := proto.Marshal(not)
+
+		for _, v := range rm.members {
+			v.Session.SendPacket(msg.Msg_Id_value["Enter_Rm_Not"], nbuff, uint16(len(nbuff)))
+		}
+	}
+
+	// add member
 	rm.members[user.ID] = user
+	user.RmNo = rm.rID
+
+	fmt.Println("Enter Room no:", rm.rID, "member count:", len(rm.members))
 }
 
-// load redis db
-func LoadRoom(id uint32, client *redis.Client) (Room, error) {
+//leave room
+func (rm Room) LeaveMember(user *User) {
+	delete(rm.members, user.ID)
 
+	// leave not packet broad cast
+	if len(rm.members) > 0 {
+		not := &msg.LeaveRmNot{}
+		not.Names = make([]string, 1)
+		not.Names[0] = user.Name
+		nbuff, _ := proto.Marshal(not)
+
+		for _, v := range rm.members {
+			v.Session.SendPacket(msg.Msg_Id_value["Leave_Rm_Not"], nbuff, uint16(len(nbuff)))
+		}
+	}
+
+	fmt.Println("Leave Room no:", rm.rID, "member count:", len(rm.members))
+}
+
+// set room setatus
+
+// load redis db
+func LoadRoom(id uint32, client *redis.Client) (*Room, error) {
+
+	fmt.Println("Load room id:", id)
 	// redis slelct db 2(room)
 	pipe := client.Pipeline()
 	defer pipe.Close()
 	pipe.Select(2)
 	_, err := pipe.Exec()
 	if err != nil {
-		return Room{}, err
+		return &Room{}, err
 	}
 
 	// hget room
 	rID := strconv.Itoa(int(id))
 	rType, err := client.HGet("blue_server.room.type", rID).Result()
 	if err != nil {
-		return Room{}, err
+		return &Room{}, err
 	}
 	rStatus, err := client.HGet("blue_server.room.status", rID).Result()
 	if err != nil {
-		return Room{}, err
+		return &Room{}, err
 	}
 	createTime, err := client.HGet("blue_server.room.create.time", rID).Result()
 	if err != nil {
-		return Room{}, err
+		return &Room{}, err
 	}
 	create, err := time.Parse("2006-01-02 15:04:05", createTime)
 	if err != nil {
-		return Room{}, err
+		return &Room{}, err
 	}
 	iStatus := RoomStatusValue[rStatus]
 	iType := RoomTypeValue[rType]
 
 	// load member ???
 
-	return Room{
+	return &Room{
 		rID:        id,
 		rType:      iType,
 		rStatus:    iStatus,
-		members:    make(map[uint32]User),
+		members:    make(map[uint32]*User),
 		createTime: create}, nil
 }
 
@@ -168,9 +223,9 @@ func (rm Room) Save(client *redis.Client) error {
 func (rm Room) ToString() string {
 	var users string
 	for _, v := range rm.members {
-		users += v.ToString()
+		users += v.ToString() + "\r\n"
 	}
 
-	return fmt.Sprintf("%d %s %s %s {%s}", rm.rID, RoomTypeName[rm.rType], RoomStatusName[rm.rStatus],
+	return fmt.Sprintf("%d %s %s %s \r\n{%s}", rm.rID, RoomTypeName[rm.rType], RoomStatusName[rm.rStatus],
 		rm.createTime.Format("2006-01-02 15:04:05"), users)
 }

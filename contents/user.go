@@ -20,6 +20,7 @@ type User struct {
 	VcGold     uint32
 	Key        string
 	Status     UserStatus
+	ChNo       uint32
 	RmNo       uint32
 	LoginTime  time.Time
 	CreateTime time.Time
@@ -70,13 +71,13 @@ var UserPlatformValue = map[string]UserPlatform{
 }
 
 // create new User
-func NewUser() User {
-	return User{
+func NewUser() *User {
+	return &User{
 		ID: 0}
 }
 
 // loading user info from redis
-func LoadUser(id uint32, client *redis.Client) (User, error) {
+func LoadUser(id uint32, client *redis.Client) (*User, error) {
 
 	// redis slelct db 1(user)
 	pipe := client.Pipeline()
@@ -89,75 +90,76 @@ func LoadUser(id uint32, client *redis.Client) (User, error) {
 	userID := strconv.Itoa(int(id))
 	name, err := client.HGet("blue_server.user.name", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 
 	hashkey, err := client.HGet("blue_server.user.hashkey", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	createTime, err := client.HGet("blue_server.user.create.time", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	platform, err := client.HGet("blue_server.user.platform", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	loginStatus, err := client.HGet("blue_server.user.login.status", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	rmNo, err := client.HGet("blue_server.user.room.no", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	loginTime, err := client.HGet("blue_server.user.login.time", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	gem, err := client.HGet("blue_server.user.vc.gem", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	gold, err := client.HGet("blue_server.user.vc.gold", userID).Result()
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 
 	iPlatform := UserPlatformValue[platform]
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	iGem, err := strconv.Atoi(gem)
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	iGold, err := strconv.Atoi(gold)
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	login, err := time.Parse("2006-01-02 15:04:05", loginTime)
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	create, err := time.Parse("2006-01-02 15:04:05", createTime)
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 	iStatus := UserStatusValue[loginStatus]
 	iRmNo, err := strconv.Atoi(rmNo)
 	if err != nil {
-		return User{}, err
+		return &User{}, err
 	}
 
-	return User{ID: id,
+	return &User{ID: id,
 		Name:       name,
 		Platform:   iPlatform,
 		VcGem:      uint32(iGem),
 		VcGold:     uint32(iGold),
 		Key:        hashkey,
 		Status:     iStatus,
+		ChNo:       0,
 		RmNo:       uint32(iRmNo),
 		LoginTime:  login,
 		CreateTime: create,
@@ -173,7 +175,12 @@ func (u User) Save(client *redis.Client) error {
 	_, _ = pipe.Exec()
 
 	id := strconv.Itoa(int(u.ID))
-	result, err := client.HSet("blue_server.user.name", id, u.Name).Result()
+	result, err := client.HSet("blue_server.user.id", u.Name, id).Result()
+	if err != nil {
+		return err
+	}
+
+	result, err = client.HSet("blue_server.user.name", id, u.Name).Result()
 	if err != nil {
 		return err
 	}
@@ -183,12 +190,12 @@ func (u User) Save(client *redis.Client) error {
 		return err
 	}
 
-	result, err = client.HSet("blue_server.user.platform", id, strconv.Itoa(int(u.Platform))).Result()
+	result, err = client.HSet("blue_server.user.platform", id, UserPlatformName[u.Platform]).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = client.HSet("blue_server.user.login.status", id, strconv.Itoa(int(u.Status))).Result()
+	result, err = client.HSet("blue_server.user.login.status", id, UserStatusName[u.Status]).Result()
 	if err != nil {
 		return err
 	}
@@ -213,6 +220,11 @@ func (u User) Save(client *redis.Client) error {
 		return err
 	}
 
+	result, err = client.HSet("blue_server.user.room.no", id, strconv.Itoa(int(u.RmNo))).Result()
+	if err != nil {
+		return err
+	}
+
 	if result == false {
 		return errors.New("already set data")
 	}
@@ -231,4 +243,16 @@ func (u User) ToString() string {
 	return fmt.Sprintf("ID:%d Platform:%s Name:%s Status:%s Gem:%d Gold:%d Create Time:%s Login Time:%s",
 		u.ID, UserPlatformName[u.Platform], u.Name, UserStatusName[u.Status], u.VcGem, u.VcGold,
 		u.CreateTime.Format("2006-01-02 15:04:05"), u.LoginTime.Format("2006-01-02 15:04:05"))
+}
+
+// generate id
+func GenID() uint32 {
+	pipe := _redisClient.Pipeline()
+	defer pipe.Close()
+
+	pipe.Select(1)
+	_, _ = pipe.Exec()
+
+	genID, _ := _redisClient.Incr("blue_server.manager.genid").Result()
+	return uint32(genID)
 }

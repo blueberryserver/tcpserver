@@ -3,6 +3,7 @@ package contents
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/blueberryserver/tcpserver/msg"
 	"github.com/blueberryserver/tcpserver/network"
@@ -20,9 +21,26 @@ func SetRedisClient(client *redis.Client) {
 // server handler
 //-------------------------------------------------------------------------------------
 
+//
+func CloseHandler(session *network.Session) {
+	fmt.Printf("Server close handler call \r\n")
+	user, err := FindUser(session)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	LeaveCh(user)
+}
+
 // req ping
 type ReqPing struct {
 	msgID int32
+}
+
+// req login
+func GetHandlerReqPing(msgid int32) ReqPing {
+	return ReqPing{msgID: msgid}
 }
 
 // req login
@@ -33,9 +51,49 @@ func (m ReqPing) Execute(session *network.Session, data []byte, length uint16) b
 	return true
 }
 
-// req login
-func GetHandlerReqPing(msgid int32) ReqPing {
-	return ReqPing{msgID: msgid}
+// req regist
+type ReqRegist struct {
+	msgID int32
+}
+
+// req regist
+func GetHandlerReqRegist(msgid int32) ReqRegist {
+	return ReqRegist{msgID: msgid}
+}
+
+// req regist
+func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16) bool {
+	fmt.Printf("Server ReqPing msg: %d\r\n", m.msgID)
+
+	// unmarshaling
+	req := &msg.RegistReq{}
+	err := proto.Unmarshal(data[:length], req)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	// create user obj
+	user := NewUser()
+	user.ID = GenID()
+	user.Name = *req.Name
+	user.Platform = UserPlatform(*req.Platform)
+	user.Status = UserStatusValue["LOGON"]
+	user.VcGem = 0
+	user.VcGold = 0
+	user.CreateTime = time.Now()
+	user.LoginTime = time.Now()
+	err = user.Save(_redisClient)
+
+	// ans
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.RegistAns{
+		Err: &errCode,
+	}
+
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["Regist_Ans"], abuff, uint16(len(abuff)))
+	return true
 }
 
 // req login
@@ -84,6 +142,9 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 
 	// session binding
 	user.Session = session
+
+	// enter default channel(0)
+	EnterCh(0, user)
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
@@ -167,6 +228,73 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 		return false
 	}
 
+	user, err := FindUser(session)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	// channel enter
+	EnterCh(*req.ChNo, user)
+
+	// ans
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.EnterChAns{
+		Err: &errCode,
+	}
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["Enter_Ch_Ans"], abuff, uint16(len(abuff)))
+	return true
+}
+
+// req enter room
+type ReqEnterRm struct {
+	msgID int32
+}
+
+// req enter room
+func GetHandlerReqEnterRm(msgid int32) ReqEnterRm {
+	return ReqEnterRm{msgID: msgid}
+}
+
+// req enter channel
+func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16) bool {
+	fmt.Printf("Server ReqEnterRm msg: %d \r\n", m.msgID)
+
+	// unmarshaling
+	req := &msg.EnterRmReq{}
+	err := proto.Unmarshal(data[:length], req)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	// find user
+	user, err := FindUser(session)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	// find channel
+	ch, err := FindCh(user.ChNo)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	err = ch.EnterRm(*req.RmNo, user)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	// ans
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.EnterRmAns{
+		Err: &errCode,
+	}
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
 	return true
 }
 

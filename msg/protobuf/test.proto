@@ -35,6 +35,8 @@ enum Msg_Id {
 	Leave_Rm_Ans = 17;
 	Leave_Rm_Not = 18;
 
+	Regist_Req = 2001;		// 등록
+	Regist_Ans = 2002;
 
 	Ping_Req = 1001;		// 핑 체크
 	Pong_Ans = 1002;
@@ -81,6 +83,8 @@ message LoginAns {
 	optional string secKey = 7;
 }
 
+
+
 message EnterChReq {
 	required uint32 chNo = 1;		// 채널 넘버(0: 자동 선택)
 }
@@ -105,6 +109,10 @@ message EnterRmAns {
 	required ErrorCode err = 1;	
 }
 
+message EnterRmNot {
+	repeated string names = 1;
+}
+
 message LeaveRmReq {
 	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
 }
@@ -112,6 +120,12 @@ message LeaveRmReq {
 message LeaveRmAns {
 	required ErrorCode err = 1;	
 }
+
+message LeaveRmNot {
+	repeated string names = 1;
+}
+
+
 
 message RelayReq {
 	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
@@ -125,4 +139,13 @@ message RelayAns {
 message RelayNot {
 	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
 	optional string data = 2;
+}
+
+message RegistReq {
+	required string name = 1;
+	required uint32 platform = 2;
+}
+
+message RegistAns {
+	required ErrorCode err = 1;
 }
