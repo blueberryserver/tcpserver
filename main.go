@@ -24,7 +24,8 @@ func main() {
 	// set redis client
 	contents.SetRedisClient(client)
 	// generate channel list
-	contents.NewChannel()
+	//contents.NewChannel()
+	contents.LoadChannel()
 
 	// server start
 	ServerStart()
@@ -38,6 +39,7 @@ func main() {
 
 	// monitoring
 	go monitor()
+	go update()
 	//go clientConnectForRegist("blueberry", 0)
 
 	//protobufTest()
@@ -160,7 +162,7 @@ func clientConnect(name string) {
 		client.SendPacket(msg.Msg_Id_value["Enter_Rm_Req"], data, uint16(len(data)))
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(15 * time.Second)
 	client.Close()
 }
 
@@ -374,6 +376,13 @@ func redisTest() {
 func monitor() {
 	for {
 		time.Sleep(10 * time.Second)
-		fmt.Println(contents.Monitor())
+		fmt.Println(contents.MonitorChannel())
+	}
+}
+
+func update() {
+	for {
+		time.Sleep(10 * time.Second)
+		contents.UpdateChannel()
 	}
 }

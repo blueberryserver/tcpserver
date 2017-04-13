@@ -28,22 +28,22 @@ type User struct {
 	Session *network.Session
 }
 
-// user status
+// user login status
 type UserStatus uint32
 
-// user status
+// user login status
 const (
 	_Logon  UserStatus = 1
 	_LogOff UserStatus = 2
 )
 
-// room status
+// user status
 var UserStatusName = map[UserStatus]string{
 	1: "LOGON",
 	2: "LOGOFF",
 }
 
-// room status
+// user status
 var UserStatusValue = map[string]UserStatus{
 	"LOGON":  1,
 	"LOGOFF": 2,
@@ -58,13 +58,13 @@ const (
 	_Android UserPlatform = 1
 )
 
-// room platform
+// user platform
 var UserPlatformName = map[UserPlatform]string{
 	1: "ANDROID",
 	0: "IOS",
 }
 
-// room platform
+// user platform
 var UserPlatformValue = map[string]UserPlatform{
 	"ANDROID": 1,
 	"IOS":     0,
@@ -230,12 +230,6 @@ func (u User) Save(client *redis.Client) error {
 	}
 
 	return nil
-}
-
-// setting user id
-func (u User) SetID(id uint32) {
-
-	u.ID = id
 }
 
 // to string

@@ -12,11 +12,38 @@ import (
 
 // channel
 type Channel struct {
-	cNo uint32 // channel number
-
+	no      uint32 // channel number
+	chType  ChType
 	sync    sync.Mutex       // sync obj
 	members map[uint32]*User // channel user
 	rooms   map[uint32]*Room // channel room
+}
+
+// channel type
+type ChType uint32
+
+// user status
+const (
+	_ChDefault ChType = 0
+	_ChNormal  ChType = 10
+	_ChLevel1  ChType = 1
+	_ChLevel2  ChType = 2
+)
+
+// room status
+var ChTypeName = map[ChType]string{
+	0:  "DEFAULT",
+	10: "NORMAL",
+	1:  "LEVEL1",
+	2:  "LEVEL2",
+}
+
+// room status
+var ChTypeValue = map[string]ChType{
+	"DEFAULT": 0,
+	"NORMAL":  10,
+	"LEVEL1":  1,
+	"LEVEL2":  2,
 }
 
 var _channels map[uint32]*Channel
@@ -27,9 +54,98 @@ func NewChannel() {
 
 	for i := 0; i < 2; i++ {
 		_channels[uint32(i)] = &Channel{
-			cNo:     uint32(i),
+			no:      uint32(i),
+			chType:  _ChDefault,
 			members: make(map[uint32]*User),
 			rooms:   make(map[uint32]*Room),
+		}
+	}
+}
+
+// load channel from redis
+func LoadChannel() {
+	// redis slelct db 2(room, ch)
+	pipe := _redisClient.Pipeline()
+	defer pipe.Close()
+	pipe.Select(2)
+	_, err := pipe.Exec()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	_channels = make(map[uint32]*Channel)
+
+	var cursor uint64
+	var outputs []string
+	outputs, cursor, err = _redisClient.HScan("blue_server.ch.type", cursor, "", 10).Result()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for i := 0; i < len(outputs); i += 2 {
+		// redis key
+		no := outputs[i]
+		iNo, _ := strconv.Atoi(no)
+		// redis value
+		chType := outputs[i+1]
+		iChType := ChTypeValue[chType]
+
+		_channels[uint32(iNo)] = &Channel{
+			no:      uint32(iNo),
+			chType:  iChType,
+			members: make(map[uint32]*User),
+			rooms:   make(map[uint32]*Room),
+		}
+		//fmt.Println(_channels[uint32(iNo)])
+	}
+	// room count
+	cursor = 0
+	outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
+	//fmt.Println(outputs)
+	// user count
+	cursor = 0
+	outputs, cursor, err = _redisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
+	//fmt.Println(outputs)
+}
+
+// save channel to redis
+func saveChannel() {
+	pipe := _redisClient.Pipeline()
+	defer pipe.Close()
+	pipe.Select(2)
+	_, err := pipe.Exec()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, ch := range _channels {
+		var mu = &ch.sync
+		mu.Lock()
+		defer mu.Unlock()
+		_, err := _redisClient.HSet("blue_server.ch.type", strconv.Itoa(int(ch.no)), ChTypeName[ch.chType]).Result()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		roomCount := len(ch.rooms)
+		_, err = _redisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		userCount := len(ch.members)
+		_, err = _redisClient.HSet("blue_server.ch.user.count", strconv.Itoa(int(ch.no)), strconv.Itoa(userCount)).Result()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		// save room info
+		for _, rm := range ch.rooms {
+			rm.Save(_redisClient)
 		}
 	}
 }
@@ -116,10 +232,11 @@ func (ch *Channel) EnterRm(rmNo uint32, user *User) error {
 	return nil
 }
 
-func Monitor() string {
+//
+func MonitorChannel() string {
 	var str string
 	for _, ch := range _channels {
-		str += "ch: " + strconv.Itoa(int(ch.cNo)) + "\r\n"
+		str += "ch: " + strconv.Itoa(int(ch.no)) + "\r\n"
 		var mu = &ch.sync
 		mu.Lock()
 		defer mu.Unlock()
@@ -133,4 +250,10 @@ func Monitor() string {
 		}
 	}
 	return str
+}
+
+// update channel info
+func UpdateChannel() {
+
+	saveChannel()
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/blueberryserver/tcpserver/msg"
 	"github.com/golang/protobuf/proto"
 
+	"strings"
+
 	redis "gopkg.in/redis.v4"
 )
 
@@ -27,8 +29,8 @@ type RoomType uint32
 
 // room type
 const (
-	_Normal RoomType = 1
-	_Dual   RoomType = 2
+	_RoomNormal RoomType = 1
+	_RoomDual   RoomType = 2
 )
 
 // room type
@@ -48,20 +50,23 @@ type RoomStatus uint32
 
 // room status
 const (
-	_None  RoomStatus = 1
-	_Ready RoomStatus = 2
+	_RmNone  RoomStatus = 1
+	_RmReady RoomStatus = 2
+	_RmPlay  RoomStatus = 3
 )
 
 // room status
 var RoomStatusName = map[RoomStatus]string{
 	1: "NONE",
 	2: "READY",
+	3: "PLAY",
 }
 
 // room status
 var RoomStatusValue = map[string]RoomStatus{
 	"NONE":  1,
 	"READY": 2,
+	"PLAY":  3,
 }
 
 // generator number
@@ -77,8 +82,8 @@ func NewRoom() Room {
 	_genNo++
 	return Room{
 		rID:     _genNo,
-		rType:   _Normal,
-		rStatus: _None,
+		rType:   _RoomNormal,
+		rStatus: _RmNone,
 		members: make(map[uint32]*User)}
 }
 
@@ -208,6 +213,18 @@ func (rm Room) Save(client *redis.Client) error {
 	}
 
 	result, err = client.HSet("blue_server.room.create.time", id, rm.createTime.Format("2006-01-02 15:04:05")).Result()
+	if err != nil {
+		return err
+	}
+	var members string
+	members = "["
+	for _, v := range rm.members {
+		members += v.Name + ", "
+	}
+	members = strings.Trim(members, ", ")
+	members += "]"
+
+	result, err = client.HSet("blue_server.room.member", id, members).Result()
 	if err != nil {
 		return err
 	}
