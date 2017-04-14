@@ -10,8 +10,6 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"strings"
-
-	redis "gopkg.in/redis.v4"
 )
 
 // room obj
@@ -131,6 +129,7 @@ func (rm Room) EnterMember(user *User) {
 //leave room
 func (rm Room) LeaveMember(user *User) {
 	delete(rm.members, user.ID)
+	user.RmNo = 0
 
 	// leave not packet broad cast
 	if len(rm.members) > 0 {
@@ -150,11 +149,11 @@ func (rm Room) LeaveMember(user *User) {
 // set room setatus
 
 // load redis db
-func LoadRoom(id uint32, client *redis.Client) (*Room, error) {
+func LoadRoom(id uint32) (*Room, error) {
 
 	fmt.Println("Load room id:", id)
 	// redis slelct db 2(room)
-	pipe := client.Pipeline()
+	pipe := _redisClient.Pipeline()
 	defer pipe.Close()
 	pipe.Select(2)
 	_, err := pipe.Exec()
@@ -164,15 +163,15 @@ func LoadRoom(id uint32, client *redis.Client) (*Room, error) {
 
 	// hget room
 	rID := strconv.Itoa(int(id))
-	rType, err := client.HGet("blue_server.room.type", rID).Result()
+	rType, err := _redisClient.HGet("blue_server.room.type", rID).Result()
 	if err != nil {
 		return &Room{}, err
 	}
-	rStatus, err := client.HGet("blue_server.room.status", rID).Result()
+	rStatus, err := _redisClient.HGet("blue_server.room.status", rID).Result()
 	if err != nil {
 		return &Room{}, err
 	}
-	createTime, err := client.HGet("blue_server.room.create.time", rID).Result()
+	createTime, err := _redisClient.HGet("blue_server.room.create.time", rID).Result()
 	if err != nil {
 		return &Room{}, err
 	}
@@ -194,25 +193,25 @@ func LoadRoom(id uint32, client *redis.Client) (*Room, error) {
 }
 
 // save room redis
-func (rm Room) Save(client *redis.Client) error {
-	pipe := client.Pipeline()
+func (rm Room) Save() error {
+	pipe := _redisClient.Pipeline()
 	defer pipe.Close()
 
 	pipe.Select(2)
 	_, _ = pipe.Exec()
 
 	id := strconv.Itoa(int(rm.rID))
-	result, err := client.HSet("blue_server.room.type", id, strconv.Itoa(int(rm.rType))).Result()
+	result, err := _redisClient.HSet("blue_server.room.type", id, strconv.Itoa(int(rm.rType))).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = client.HSet("blue_server.room.status", id, strconv.Itoa(int(rm.rStatus))).Result()
+	result, err = _redisClient.HSet("blue_server.room.status", id, strconv.Itoa(int(rm.rStatus))).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = client.HSet("blue_server.room.create.time", id, rm.createTime.Format("2006-01-02 15:04:05")).Result()
+	result, err = _redisClient.HSet("blue_server.room.create.time", id, rm.createTime.Format("2006-01-02 15:04:05")).Result()
 	if err != nil {
 		return err
 	}
@@ -224,7 +223,7 @@ func (rm Room) Save(client *redis.Client) error {
 	members = strings.Trim(members, ", ")
 	members += "]"
 
-	result, err = client.HSet("blue_server.room.member", id, members).Result()
+	result, err = _redisClient.HSet("blue_server.room.member", id, members).Result()
 	if err != nil {
 		return err
 	}

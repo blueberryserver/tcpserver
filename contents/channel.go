@@ -143,9 +143,14 @@ func saveChannel() {
 			continue
 		}
 
+		// save user info
+		// for _, ur := range ch.members {
+		// 	ur.Save()
+		// }
+
 		// save room info
 		for _, rm := range ch.rooms {
-			rm.Save(_redisClient)
+			rm.Save()
 		}
 	}
 }
@@ -166,6 +171,7 @@ func EnterCh(chNo uint32, user *User) bool {
 // leave channel
 func LeaveCh(user *User) {
 	fmt.Println("Leave channel no:", user.ChNo, "user:", user.Name, "member count:", len(_channels[0].members))
+
 	//leave defualt channel
 	delete(_channels[0].members, user.ID)
 	fmt.Println("Remind channel no: 0 member count:", len(_channels[0].members))
@@ -174,6 +180,7 @@ func LeaveCh(user *User) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	// leave room
 	if user.RmNo != 0 && user.ChNo != 0 {
 		_channels[user.ChNo].rooms[user.RmNo].LeaveMember(user)
 	}
@@ -219,7 +226,7 @@ func (ch *Channel) EnterRm(rmNo uint32, user *User) error {
 	defer mu.Unlock()
 
 	if ch.rooms[rmNo] == nil {
-		rm, err := LoadRoom(rmNo, _redisClient)
+		rm, err := LoadRoom(rmNo)
 		if err != nil {
 			return err
 		}

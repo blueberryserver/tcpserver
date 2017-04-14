@@ -57,12 +57,12 @@ func ServerStart() {
 	server := network.NewServer("tcp", ":20202", contents.CloseHandler)
 
 	// ping req 처리 핸들러 등록
-	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], contents.GetHandlerReqPing(msg.Msg_Id_value["Ping_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], contents.GetHandlerReqLogin(msg.Msg_Id_value["Login_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], contents.GetHandlerReqRelay(msg.Msg_Id_value["Relay_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Req"], contents.GetHandlerReqEnterCh(msg.Msg_Id_value["Enter_Ch_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Req"], contents.GetHandlerReqEnterRm(msg.Msg_Id_value["Enter_Rm_Req"]))
-	server.AddMsgHandler(msg.Msg_Id_value["Regist_Req"], contents.GetHandlerReqRegist(msg.Msg_Id_value["Regist_Req"]))
+	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], contents.GetHandlerReqPing())
+	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], contents.GetHandlerReqLogin())
+	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], contents.GetHandlerReqRelay())
+	server.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Req"], contents.GetHandlerReqEnterCh())
+	server.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Req"], contents.GetHandlerReqEnterRm())
+	server.AddMsgHandler(msg.Msg_Id_value["Regist_Req"], contents.GetHandlerReqRegist())
 
 	err := server.Listen()
 	if err != nil {
@@ -75,12 +75,14 @@ func clientConnect(name string) {
 	// 클라이언트 접속 요청
 	client := network.NewClient()
 	// pong Ans 처리 핸들러 등록
-	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong(msg.Msg_Id_value["Pong_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
-	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh(msg.Msg_Id_value["Enter_Ch_Ans"]))
-	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm(msg.Msg_Id_value["Enter_Rm_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong())
+	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin())
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay())
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay())
+	client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh())
+	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Not"], contents.GetHandlerNotEnterCh())
+	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm())
+	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Not"], contents.GetHandlerNotEnterRm())
 
 	// 연결 시도
 	err := client.Connect("tcp", ":20202")
@@ -170,12 +172,14 @@ func clientConnectForRegist(name string, platform uint32) {
 	// 클라이언트 접속 요청
 	client := network.NewClient()
 	// pong Ans 처리 핸들러 등록
-	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong(msg.Msg_Id_value["Pong_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin(msg.Msg_Id_value["Login_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay(msg.Msg_Id_value["Relay_Ans"]))
-	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay(msg.Msg_Id_value["Relay_Not"]))
-	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh(msg.Msg_Id_value["Enter_Ch_Ans"]))
-	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm(msg.Msg_Id_value["Enter_Rm_Ans"]))
+	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong())
+	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin())
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay())
+	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay())
+	client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh())
+	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Not"], contents.GetHandlerNotEnterCh())
+	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm())
+	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Not"], contents.GetHandlerNotEnterRm())
 
 	// 연결 시도
 	err := client.Connect("tcp", ":20202")
@@ -359,14 +363,14 @@ func redisTest() {
 	// fmt.Println(result, err)
 
 	// room obj info
-	user, err := contents.LoadUser(1234, client)
+	user, err := contents.LoadUser(1234)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	fmt.Println(user.ToString())
-	room, err := contents.LoadRoom(1, client)
+	room, err := contents.LoadRoom(1)
 	if err == nil {
 		room.EnterMember(user)
 		fmt.Println(room.ToString())
@@ -376,7 +380,9 @@ func redisTest() {
 func monitor() {
 	for {
 		time.Sleep(10 * time.Second)
+		fmt.Println("monitoring ..........................")
 		fmt.Println(contents.MonitorChannel())
+		fmt.Println("......................................")
 	}
 }
 

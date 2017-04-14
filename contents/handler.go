@@ -21,7 +21,7 @@ func SetRedisClient(client *redis.Client) {
 // server handler
 //-------------------------------------------------------------------------------------
 
-//
+// session disconnection call function
 func CloseHandler(session *network.Session) {
 	fmt.Printf("Server close handler call \r\n")
 	user, err := FindUser(session)
@@ -29,8 +29,11 @@ func CloseHandler(session *network.Session) {
 		fmt.Println(err)
 		return
 	}
-
+	// leave channel
 	LeaveCh(user)
+
+	user.Status = UserStatusValue["LOGOFF"]
+	user.Save()
 }
 
 // req ping
@@ -39,15 +42,22 @@ type ReqPing struct {
 }
 
 // req login
-func GetHandlerReqPing(msgid int32) ReqPing {
-	return ReqPing{msgID: msgid}
+func GetHandlerReqPing() ReqPing {
+	return ReqPing{msgID: msg.Msg_Id_value["Ping_Req"]}
 }
 
 // req login
 func (m ReqPing) Execute(session *network.Session, data []byte, length uint16) bool {
 	fmt.Printf("Server ReqPing msg: %d data: %s\r\n", m.msgID, data[:length])
 
-	session.SendPacket(msg.Msg_Id_value["Pong_Ans"], data, length)
+	// ans
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.PongAns{
+		Err: &errCode,
+	}
+
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["Pong_Ans"], abuff, uint16(len(abuff)))
 	return true
 }
 
@@ -57,8 +67,8 @@ type ReqRegist struct {
 }
 
 // req regist
-func GetHandlerReqRegist(msgid int32) ReqRegist {
-	return ReqRegist{msgID: msgid}
+func GetHandlerReqRegist() ReqRegist {
+	return ReqRegist{msgID: msg.Msg_Id_value["Regist_Req"]}
 }
 
 // req regist
@@ -83,7 +93,7 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	user.VcGold = 0
 	user.CreateTime = time.Now()
 	user.LoginTime = time.Now()
-	err = user.Save(_redisClient)
+	err = user.Save()
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
@@ -102,14 +112,12 @@ type ReqLogin struct {
 }
 
 // req login
-func GetHandlerReqLogin(msgid int32) ReqLogin {
-	return ReqLogin{msgID: msgid}
+func GetHandlerReqLogin() ReqLogin {
+	return ReqLogin{msgID: msg.Msg_Id_value["Login_Req"]}
 }
 
 // req login
 func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Server ReqLogin msg: %d \r\n", m.msgID)
-
 	// unmarshaling
 	req := &msg.LoginReq{}
 	err := proto.Unmarshal(data[:length], req)
@@ -117,6 +125,8 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 		fmt.Println(err)
 		return false
 	}
+
+	fmt.Printf("Server ReqLogin msg: %d %s\r\n", m.msgID, req.String())
 
 	// redis query by user id
 	pipe := _redisClient.Pipeline()
@@ -132,19 +142,26 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 
 	// load User data from redis
 	id, _ := strconv.Atoi(uID)
-	user, err := LoadUser(uint32(id), _redisClient)
+	user, err := LoadUser(uint32(id))
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
 	// print loaded user info
-	fmt.Println(user.ToString())
+	//fmt.Println(user.ToString())
 
 	// session binding
 	user.Session = session
 
+	// update login time
+	user.Status = UserStatusValue["LOGON"]
+	user.LoginTime = time.Now()
+
 	// enter default channel(0)
 	EnterCh(0, user)
+
+	// save user info
+	user.Save()
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
@@ -170,20 +187,19 @@ type ReqRelay struct {
 }
 
 // req relay
-func GetHandlerReqRelay(msgid int32) ReqRelay {
-	return ReqRelay{msgID: msgid}
+func GetHandlerReqRelay() ReqRelay {
+	return ReqRelay{msgID: msg.Msg_Id_value["Relay_Req"]}
 }
 
 // req relay
 func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Server ReqRelay msg: %d \r\n", m.msgID)
-
 	req := &msg.RelayReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
+	fmt.Printf("Server ReqRelay msg: %d %s \r\n", m.msgID, req.String())
 
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
 	ans := &msg.RelayAns{
@@ -212,14 +228,12 @@ type ReqEnterCh struct {
 }
 
 // req enter channel
-func GetHandlerReqEnterCh(msgid int32) ReqEnterCh {
-	return ReqEnterCh{msgID: msgid}
+func GetHandlerReqEnterCh() ReqEnterCh {
+	return ReqEnterCh{msgID: msg.Msg_Id_value["Enter_Ch_Req"]}
 }
 
 // req enter channel
 func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Server ReqEnterCh msg: %d \r\n", m.msgID)
-
 	// unmarshaling
 	req := &msg.EnterChReq{}
 	err := proto.Unmarshal(data[:length], req)
@@ -227,6 +241,7 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 		fmt.Println(err)
 		return false
 	}
+	fmt.Printf("Server ReqEnterCh msg: %d %s\r\n", m.msgID, req.String())
 
 	user, err := FindUser(session)
 	if err != nil {
@@ -253,14 +268,12 @@ type ReqEnterRm struct {
 }
 
 // req enter room
-func GetHandlerReqEnterRm(msgid int32) ReqEnterRm {
-	return ReqEnterRm{msgID: msgid}
+func GetHandlerReqEnterRm() ReqEnterRm {
+	return ReqEnterRm{msgID: msg.Msg_Id_value["Enter_Rm_Req"]}
 }
 
 // req enter channel
 func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Server ReqEnterRm msg: %d \r\n", m.msgID)
-
 	// unmarshaling
 	req := &msg.EnterRmReq{}
 	err := proto.Unmarshal(data[:length], req)
@@ -268,6 +281,8 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 		fmt.Println(err)
 		return false
 	}
+
+	fmt.Printf("Server ReqEnterRm msg: %d %s\r\n", m.msgID, req.String())
 
 	// find user
 	user, err := FindUser(session)
@@ -307,13 +322,20 @@ type AnsPong struct {
 }
 
 // ans pong
-func GetHandlerAnsPong(msgid int32) AnsPong {
-	return AnsPong{msgID: msgid}
+func GetHandlerAnsPong() AnsPong {
+	return AnsPong{msgID: msg.Msg_Id_value["Pong_Ans"]}
 }
 
 // ans pong
 func (m AnsPong) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Client Ans_Pong msg: %d data: %s\r\n", m.msgID, data[:length])
+	// and un marshaling
+	ans := &msg.PongAns{}
+	err := proto.Unmarshal(data[:length], ans)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	fmt.Printf("Client AnsPong msg: %d %s\r\n", m.msgID, ans.String())
 	return true
 }
 
@@ -323,14 +345,12 @@ type AnsLogin struct {
 }
 
 // ans login
-func GetHandlerAnsLogin(msgid int32) AnsLogin {
-	return AnsLogin{msgID: msgid}
+func GetHandlerAnsLogin() AnsLogin {
+	return AnsLogin{msgID: msg.Msg_Id_value["Login_Ans"]}
 }
 
 // ans login
 func (m AnsLogin) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Client Ans_Login msg: %d \r\n", m.msgID)
-
 	// and un marshaling
 	ans := &msg.LoginAns{}
 	err := proto.Unmarshal(data[:length], ans)
@@ -338,8 +358,8 @@ func (m AnsLogin) Execute(session *network.Session, data []byte, length uint16) 
 		fmt.Println(err)
 		return false
 	}
+	fmt.Printf("Client AnsLogin msg: %d %s\r\n", m.msgID, ans.String())
 
-	fmt.Println(ans)
 	return true
 }
 
@@ -349,14 +369,12 @@ type AnsRelay struct {
 }
 
 // ans relay
-func GetHandlerAnsRelay(msgid int32) AnsRelay {
-	return AnsRelay{msgID: msgid}
+func GetHandlerAnsRelay() AnsRelay {
+	return AnsRelay{msgID: msg.Msg_Id_value["Relay_Ans"]}
 }
 
 // ans login
 func (m AnsRelay) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Client Ans_Relay msg: %d \r\n", m.msgID)
-
 	// and un marshaling
 	ans := &msg.RelayAns{}
 	err := proto.Unmarshal(data[:length], ans)
@@ -365,7 +383,7 @@ func (m AnsRelay) Execute(session *network.Session, data []byte, length uint16) 
 		return false
 	}
 
-	fmt.Println(ans)
+	fmt.Printf("Client AnsRelay msg: %d %s\r\n", m.msgID, ans.String())
 	return true
 }
 
@@ -375,14 +393,12 @@ type NotRelay struct {
 }
 
 // not relay
-func GetHandlerNotRelay(msgid int32) NotRelay {
-	return NotRelay{msgID: msgid}
+func GetHandlerNotRelay() NotRelay {
+	return NotRelay{msgID: msg.Msg_Id_value["Relay_Not"]}
 }
 
 // not login
 func (m NotRelay) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Client Not_Relay msg: %d \r\n", m.msgID)
-
 	// not un marshaling
 	not := &msg.RelayNot{}
 	err := proto.Unmarshal(data[:length], not)
@@ -391,6 +407,68 @@ func (m NotRelay) Execute(session *network.Session, data []byte, length uint16) 
 		return false
 	}
 
-	fmt.Println(not)
+	fmt.Printf("Client NotRelay msg: %d %s\r\n", m.msgID, not.String())
+	return true
+}
+
+// ans enter ch
+type AnsEnterCh struct {
+	msgID int32
+}
+
+// ans enter ch
+func GetHandlerAnsEnterCh() AnsEnterCh {
+	return AnsEnterCh{msgID: msg.Msg_Id_value["Enter_Ch_Ans"]}
+}
+
+// ans enter ch
+func (m AnsEnterCh) Execute(session *network.Session, data []byte, length uint16) bool {
+	fmt.Printf("Client AnsEnterCh msg: %d \r\n", m.msgID)
+	return true
+}
+
+// ans enter rm
+type AnsEnterRm struct {
+	msgID int32
+}
+
+// ans enter rm
+func GetHandlerAnsEnterRm() AnsEnterRm {
+	return AnsEnterRm{msgID: msg.Msg_Id_value["Enter_Rm_Ans"]}
+}
+
+// ans enter rm
+func (m AnsEnterRm) Execute(session *network.Session, data []byte, length uint16) bool {
+	ans := &msg.EnterRmAns{}
+	err := proto.Unmarshal(data[:length], ans)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	fmt.Printf("Client AnsEnterRm msg: %d %s\r\n", m.msgID, ans.String())
+	return true
+}
+
+// not enter rm
+type NotEnterRm struct {
+	msgID int32
+}
+
+// not enter rm
+func GetHandlerNotEnterRm() NotEnterRm {
+	return NotEnterRm{msgID: msg.Msg_Id_value["Enter_Rm_Not"]}
+}
+
+// not enter rm
+func (m NotEnterRm) Execute(session *network.Session, data []byte, length uint16) bool {
+	// not un marshaling
+	not := &msg.EnterRmNot{}
+	err := proto.Unmarshal(data[:length], not)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	fmt.Printf("Client NotEnterRm msg: %d %s\r\n", m.msgID, not.String())
 	return true
 }
