@@ -33,9 +33,9 @@ func main() {
 	// 1초간 대기
 	time.Sleep(1 * time.Second)
 	// client connection
-	go clientConnect("noom")
-	go clientConnect("kartarn")
-	go clientConnect("blueberry")
+	//go clientConnect("noom")
+	//go clientConnect("kartarn")
+	//go clientConnect("blueberry")
 
 	// monitoring
 	go monitor()
@@ -380,8 +380,9 @@ func redisTest() {
 func monitor() {
 	for {
 		time.Sleep(10 * time.Second)
+		str := contents.MonitorChannel()
 		fmt.Println("monitoring ..........................")
-		fmt.Println(contents.MonitorChannel())
+		fmt.Println(str)
 		fmt.Println("......................................")
 	}
 }

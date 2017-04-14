@@ -48,7 +48,15 @@ func GetHandlerReqPing() ReqPing {
 
 // req login
 func (m ReqPing) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Server ReqPing msg: %d data: %s\r\n", m.msgID, data[:length])
+	// unmarshaling
+	req := &msg.PingReq{}
+	err := proto.Unmarshal(data[:length], req)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	fmt.Printf("Server ReqPing msg: %d %s\r\n", m.msgID, req.String())
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
@@ -73,8 +81,6 @@ func GetHandlerReqRegist() ReqRegist {
 
 // req regist
 func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Server ReqPing msg: %d\r\n", m.msgID)
-
 	// unmarshaling
 	req := &msg.RegistReq{}
 	err := proto.Unmarshal(data[:length], req)
@@ -82,6 +88,7 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 		fmt.Println(err)
 		return false
 	}
+	fmt.Printf("Server ReqRegist msg: %d %s\r\n", m.msgID, req.String())
 
 	// create user obj
 	user := NewUser()
