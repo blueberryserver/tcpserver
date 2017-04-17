@@ -3,6 +3,7 @@ package contents
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -123,7 +124,7 @@ func (rm Room) EnterMember(user *User) {
 	rm.members[user.ID] = user
 	user.RmNo = rm.rID
 
-	fmt.Println("Enter Room no:", rm.rID, "member count:", len(rm.members))
+	log.Println("Enter Room no:", rm.rID, "member count:", len(rm.members))
 }
 
 //leave room
@@ -143,7 +144,7 @@ func (rm Room) LeaveMember(user *User) {
 		}
 	}
 
-	fmt.Println("Leave Room no:", rm.rID, "member count:", len(rm.members))
+	log.Println("Leave Room no:", rm.rID, "member count:", len(rm.members))
 }
 
 // set room setatus
@@ -151,7 +152,7 @@ func (rm Room) LeaveMember(user *User) {
 // load redis db
 func LoadRoom(id uint32) (*Room, error) {
 
-	fmt.Println("Load room id:", id)
+	log.Println("Load room id:", id)
 	// redis slelct db 2(room)
 	pipe := _redisClient.Pipeline()
 	defer pipe.Close()

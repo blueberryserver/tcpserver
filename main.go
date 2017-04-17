@@ -7,6 +7,12 @@ import (
 
 	redis "gopkg.in/redis.v4"
 
+	"os"
+
+	"io"
+
+	"log"
+
 	"github.com/blueberryserver/tcpserver/contents"
 	"github.com/blueberryserver/tcpserver/msg"
 	"github.com/blueberryserver/tcpserver/network"
@@ -14,6 +20,20 @@ import (
 )
 
 func main() {
+	//file, err := os.OpenFile("pprof.csv", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+	//recorder := pprof.NewTimeRecorder()
+	//contents.SetTimeRecorder(recorder)
+	//summary := pprof.GCSummary()
+
+	logfile := "log_" + time.Now().Format("2006_01_02_15") + ".txt"
+	fileLog, err := os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+	defer fileLog.Close()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	mutiWriter := io.MultiWriter(fileLog, os.Stdout)
+	log.SetOutput(mutiWriter)
 
 	client := redis.NewClient(&redis.Options{
 		Addr:     "127.0.0.1:6379",
@@ -27,31 +47,35 @@ func main() {
 	//contents.NewChannel()
 	contents.LoadChannel()
 
+	// monitoring
+	go monitor()
+	go update()
+
 	// server start
 	ServerStart()
 
 	// wait 1 second
 	time.Sleep(1 * time.Second)
+
 	// client connection
 	//go clientConnect("noom")
 	//go clientConnect("kartarn")
 	//go clientConnect("blueberry")
 
-	// monitoring
-	go monitor()
-	go update()
 	//go clientConnectForRegist("blueberry", 0)
 
 	//protobufTest()
 	//redisTest()
 	// wait keyborad input
-	var s string
-	fmt.Scanf("%s", &s)
+	//summary.Write(file)
+	//println(pprof.GCSummaryColumns)
+	//println(summary.CSV())
+	//recorder.SaveCSV("time.csv")
 }
 
 // server start
 func ServerStart() {
-	fmt.Printf("server start\r\n")
+	log.Printf("server start\r\n")
 	server := network.NewServer("tcp", ":20202", contents.CloseHandler)
 
 	// regist server handler
@@ -64,9 +88,14 @@ func ServerStart() {
 
 	err := server.Listen()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
+
+	var s string
+	fmt.Scanf("%s", &s)
+	//server.Stop()
+
 }
 
 func clientConnect(name string) {
@@ -85,7 +114,7 @@ func clientConnect(name string) {
 	// try connect
 	err := client.Connect("tcp", ":20202")
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -138,7 +167,7 @@ func clientConnect(name string) {
 
 		data, err := proto.Marshal(m)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
@@ -154,7 +183,7 @@ func clientConnect(name string) {
 
 		data, err := proto.Marshal(m)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
@@ -180,7 +209,7 @@ func clientConnectForRegist(name string, platform uint32) {
 
 	err := client.Connect("tcp", ":20202")
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -200,7 +229,7 @@ func clientConnectForRegist(name string, platform uint32) {
 		}
 		data, err := proto.Marshal(m)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
@@ -214,7 +243,7 @@ func clientConnectForRegist(name string, platform uint32) {
 		}
 		data, err := proto.Marshal(m)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
@@ -247,7 +276,7 @@ func clientConnectForRegist(name string, platform uint32) {
 
 		data, err := proto.Marshal(m)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
@@ -263,7 +292,7 @@ func clientConnectForRegist(name string, platform uint32) {
 
 		data, err := proto.Marshal(m)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 

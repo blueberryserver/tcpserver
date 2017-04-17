@@ -2,10 +2,9 @@ package contents
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
-
-	"fmt"
 
 	"github.com/blueberryserver/tcpserver/network"
 )

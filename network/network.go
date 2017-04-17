@@ -99,6 +99,11 @@ func (server *NetServer) Listen(c chan bool) error {
 	return nil
 }
 
+//
+func (server *NetServer) Stop() {
+	server._running = false
+}
+
 func (server *NetServer) handlerConnect(session *Session) {
 
 	fmt.Printf("accept session sid:%d\r\n", session._id)

@@ -2,7 +2,7 @@ package contents
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"sync"
 
 	"strconv"
@@ -70,7 +70,7 @@ func LoadChannel() {
 	pipe.Select(2)
 	_, err := pipe.Exec()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -80,7 +80,7 @@ func LoadChannel() {
 	var outputs []string
 	outputs, cursor, err = _redisClient.HScan("blue_server.ch.type", cursor, "", 10).Result()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -98,16 +98,16 @@ func LoadChannel() {
 			members: make(map[uint32]*User),
 			rooms:   make(map[uint32]*Room),
 		}
-		//fmt.Println(_channels[uint32(iNo)])
+		//log.Println(_channels[uint32(iNo)])
 	}
 	// room count
 	cursor = 0
 	outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
-	//fmt.Println(outputs)
+	//log.Println(outputs)
 	// user count
 	cursor = 0
 	outputs, cursor, err = _redisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
-	//fmt.Println(outputs)
+	//log.Println(outputs)
 }
 
 // save channel to redis
@@ -117,7 +117,7 @@ func saveChannel() {
 	pipe.Select(2)
 	_, err := pipe.Exec()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -127,19 +127,19 @@ func saveChannel() {
 		defer mu.Unlock()
 		_, err := _redisClient.HSet("blue_server.ch.type", strconv.Itoa(int(ch.no)), ChTypeName[ch.chType]).Result()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 		roomCount := len(ch.rooms)
 		_, err = _redisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 		userCount := len(ch.members)
 		_, err = _redisClient.HSet("blue_server.ch.user.count", strconv.Itoa(int(ch.no)), strconv.Itoa(userCount)).Result()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 
@@ -161,7 +161,7 @@ func EnterCh(chNo uint32, user *User) bool {
 		return false
 	}
 
-	fmt.Println("Enter channel no:", chNo, "user:", user.Name)
+	log.Println("Enter channel no:", chNo, "user:", user.Name)
 	_channels[chNo].members[user.ID] = user
 
 	user.ChNo = chNo
@@ -170,11 +170,11 @@ func EnterCh(chNo uint32, user *User) bool {
 
 // leave channel
 func LeaveCh(user *User) {
-	fmt.Println("Leave channel no:", user.ChNo, "user:", user.Name, "member count:", len(_channels[0].members))
+	log.Println("Leave channel no:", user.ChNo, "user:", user.Name, "member count:", len(_channels[0].members))
 
 	//leave defualt channel
 	delete(_channels[0].members, user.ID)
-	fmt.Println("Remind channel no: 0 member count:", len(_channels[0].members))
+	log.Println("Remind channel no: 0 member count:", len(_channels[0].members))
 
 	var mu = &_channels[user.ChNo].sync
 	mu.Lock()
@@ -192,7 +192,7 @@ func LeaveCh(user *User) {
 
 // move channel
 func MoveCh(chNo uint32, user *User) {
-	fmt.Println("Move channel no:", chNo, "user:", user.Name)
+	log.Println("Move channel no:", chNo, "user:", user.Name)
 
 	// leave current channel
 	delete(_channels[user.ChNo].members, user.ID)

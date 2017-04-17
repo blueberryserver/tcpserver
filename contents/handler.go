@@ -1,21 +1,29 @@
 package contents
 
 import (
-	"fmt"
+	"log"
 	"strconv"
 	"time"
 
 	"github.com/blueberryserver/tcpserver/msg"
 	"github.com/blueberryserver/tcpserver/network"
+	"github.com/funny/pprof"
 	"github.com/golang/protobuf/proto"
 	redis "gopkg.in/redis.v4"
 )
 
 var _redisClient *redis.Client
 
+var _recorder *pprof.TimeRecorder
+
 // set global redis client
 func SetRedisClient(client *redis.Client) {
 	_redisClient = client
+}
+
+// set golbal time recorder
+func SetTimeRecorder(recorder *pprof.TimeRecorder) {
+	_recorder = recorder
 }
 
 // server handler
@@ -23,10 +31,10 @@ func SetRedisClient(client *redis.Client) {
 
 // session disconnection call function
 func CloseHandler(session *network.Session) {
-	fmt.Printf("Server close handler call \r\n")
+	log.Printf("Server close handler call \r\n")
 	user, err := FindUser(session)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	// leave channel
@@ -52,11 +60,11 @@ func (m ReqPing) Execute(session *network.Session, data []byte, length uint16) b
 	req := &msg.PingReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
-	fmt.Printf("Server ReqPing msg: %d %s\r\n", m.msgID, req.String())
+	log.Printf("Server ReqPing msg: %d %s\r\n", m.msgID, req.String())
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
@@ -81,14 +89,15 @@ func GetHandlerReqRegist() ReqRegist {
 
 // req regist
 func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
 	// unmarshaling
 	req := &msg.RegistReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
-	fmt.Printf("Server ReqRegist msg: %d %s\r\n", m.msgID, req.String())
+	log.Printf("Server ReqRegist msg: %d %s\r\n", m.msgID, req.String())
 
 	// create user obj
 	user := NewUser()
@@ -110,6 +119,7 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Regist_Ans"], abuff, uint16(len(abuff)))
+	//_recorder.Record("ReqRegist", time.Since(t1))
 	return true
 }
 
@@ -125,15 +135,16 @@ func GetHandlerReqLogin() ReqLogin {
 
 // req login
 func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
 	// unmarshaling
 	req := &msg.LoginReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
-	fmt.Printf("Server ReqLogin msg: %d %s\r\n", m.msgID, req.String())
+	log.Printf("Server ReqLogin msg: %d %s\r\n", m.msgID, req.String())
 
 	// redis query by user id
 	pipe := _redisClient.Pipeline()
@@ -143,7 +154,7 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 
 	uID, err := _redisClient.HGet("blue_server.user.id", *req.Id).Result()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
@@ -151,11 +162,11 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	id, _ := strconv.Atoi(uID)
 	user, err := LoadUser(uint32(id))
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 	// print loaded user info
-	//fmt.Println(user.ToString())
+	//log.Println(user.ToString())
 
 	// session binding
 	user.Session = session
@@ -185,6 +196,7 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
+	//_recorder.Record("ReqLogin", time.Since(t1))
 	return true
 }
 
@@ -200,20 +212,21 @@ func GetHandlerReqRelay() ReqRelay {
 
 // req relay
 func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
 	req := &msg.RelayReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
-	fmt.Printf("Server ReqRelay msg: %d %s \r\n", m.msgID, req.String())
+	log.Printf("Server ReqRelay msg: %d %s \r\n", m.msgID, req.String())
 
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
 	ans := &msg.RelayAns{
 		Err: &errCode,
 	}
 
-	fmt.Println(req)
+	log.Println(req)
 
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
@@ -226,6 +239,7 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 
 	nbuff, _ := proto.Marshal(not)
 	session.SendPacket(msg.Msg_Id_value["Relay_Not"], nbuff, uint16(len(nbuff)))
+	//_recorder.Record("ReqRelay", time.Since(t1))
 	return true
 }
 
@@ -241,18 +255,19 @@ func GetHandlerReqEnterCh() ReqEnterCh {
 
 // req enter channel
 func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
 	// unmarshaling
 	req := &msg.EnterChReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
-	fmt.Printf("Server ReqEnterCh msg: %d %s\r\n", m.msgID, req.String())
+	log.Printf("Server ReqEnterCh msg: %d %s\r\n", m.msgID, req.String())
 
 	user, err := FindUser(session)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
@@ -266,6 +281,7 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 	}
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Enter_Ch_Ans"], abuff, uint16(len(abuff)))
+	//_recorder.Record("ReqEnterCh", time.Since(t1))
 	return true
 }
 
@@ -281,33 +297,34 @@ func GetHandlerReqEnterRm() ReqEnterRm {
 
 // req enter channel
 func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
 	// unmarshaling
 	req := &msg.EnterRmReq{}
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
-	fmt.Printf("Server ReqEnterRm msg: %d %s\r\n", m.msgID, req.String())
+	log.Printf("Server ReqEnterRm msg: %d %s\r\n", m.msgID, req.String())
 
 	// find user
 	user, err := FindUser(session)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
 	// find channel
 	ch, err := FindCh(user.ChNo)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
 	err = ch.EnterRm(*req.RmNo, user)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 	// ans
@@ -317,6 +334,7 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 	}
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
+	//_recorder.Record("ReqEtnerRm", time.Since(t1))
 	return true
 }
 
@@ -339,10 +357,10 @@ func (m AnsPong) Execute(session *network.Session, data []byte, length uint16) b
 	ans := &msg.PongAns{}
 	err := proto.Unmarshal(data[:length], ans)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
-	fmt.Printf("Client AnsPong msg: %d %s\r\n", m.msgID, ans.String())
+	log.Printf("Client AnsPong msg: %d %s\r\n", m.msgID, ans.String())
 	return true
 }
 
@@ -362,10 +380,10 @@ func (m AnsLogin) Execute(session *network.Session, data []byte, length uint16) 
 	ans := &msg.LoginAns{}
 	err := proto.Unmarshal(data[:length], ans)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
-	fmt.Printf("Client AnsLogin msg: %d %s\r\n", m.msgID, ans.String())
+	log.Printf("Client AnsLogin msg: %d %s\r\n", m.msgID, ans.String())
 
 	return true
 }
@@ -386,11 +404,11 @@ func (m AnsRelay) Execute(session *network.Session, data []byte, length uint16) 
 	ans := &msg.RelayAns{}
 	err := proto.Unmarshal(data[:length], ans)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
-	fmt.Printf("Client AnsRelay msg: %d %s\r\n", m.msgID, ans.String())
+	log.Printf("Client AnsRelay msg: %d %s\r\n", m.msgID, ans.String())
 	return true
 }
 
@@ -410,11 +428,11 @@ func (m NotRelay) Execute(session *network.Session, data []byte, length uint16) 
 	not := &msg.RelayNot{}
 	err := proto.Unmarshal(data[:length], not)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
-	fmt.Printf("Client NotRelay msg: %d %s\r\n", m.msgID, not.String())
+	log.Printf("Client NotRelay msg: %d %s\r\n", m.msgID, not.String())
 	return true
 }
 
@@ -430,7 +448,7 @@ func GetHandlerAnsEnterCh() AnsEnterCh {
 
 // ans enter ch
 func (m AnsEnterCh) Execute(session *network.Session, data []byte, length uint16) bool {
-	fmt.Printf("Client AnsEnterCh msg: %d \r\n", m.msgID)
+	log.Printf("Client AnsEnterCh msg: %d \r\n", m.msgID)
 	return true
 }
 
@@ -449,11 +467,11 @@ func (m AnsEnterRm) Execute(session *network.Session, data []byte, length uint16
 	ans := &msg.EnterRmAns{}
 	err := proto.Unmarshal(data[:length], ans)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
 
-	fmt.Printf("Client AnsEnterRm msg: %d %s\r\n", m.msgID, ans.String())
+	log.Printf("Client AnsEnterRm msg: %d %s\r\n", m.msgID, ans.String())
 	return true
 }
 
@@ -473,9 +491,9 @@ func (m NotEnterRm) Execute(session *network.Session, data []byte, length uint16
 	not := &msg.EnterRmNot{}
 	err := proto.Unmarshal(data[:length], not)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return false
 	}
-	fmt.Printf("Client NotEnterRm msg: %d %s\r\n", m.msgID, not.String())
+	log.Printf("Client NotEnterRm msg: %d %s\r\n", m.msgID, not.String())
 	return true
 }

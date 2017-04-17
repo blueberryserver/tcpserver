@@ -38,6 +38,11 @@ func (server *_Server) Listen() error {
 }
 
 //
+func (server *_Server) Stop() {
+	server.Stop()
+}
+
+//
 func (server *_Server) AddMsgHandler(msgID int32, handler _MsgHandler) error {
 	if server._server._handler[msgID] != nil {
 		return errors.New("already handler binding")
