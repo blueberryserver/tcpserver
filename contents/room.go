@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/blueberryserver/tcpserver/msg"
@@ -68,22 +69,24 @@ var RoomStatusValue = map[string]RoomStatus{
 	"PLAY":  3,
 }
 
-// generator number
-var _genNo uint32
-
-// init gen number
+//
 func InitRoom() {
-	_genNo = 0
+	_rooms = make(map[uint32]*Room)
 }
 
+var _sync sync.Mutex // sync obj
+var _rooms map[uint32]*Room
+
 // create new room
-func NewRoom() Room {
-	_genNo++
-	return Room{
-		rID:     _genNo,
-		rType:   _RoomNormal,
-		rStatus: _RmNone,
-		members: make(map[uint32]*User)}
+func NewRoom() *Room {
+	genID := RoomGenID()
+	return &Room{
+		rID:        genID,
+		rType:      _RoomNormal,
+		rStatus:    _RmNone,
+		members:    make(map[uint32]*User),
+		createTime: time.Now(),
+	}
 }
 
 // set room info
@@ -150,7 +153,8 @@ func (rm Room) LeaveMember(user *User) {
 // set room setatus
 
 // load redis db
-func LoadRoom(id uint32) (*Room, error) {
+
+func load(id uint32) (*Room, error) {
 
 	log.Println("Load room id:", id)
 	// redis slelct db 2(room)
@@ -192,7 +196,7 @@ func LoadRoom(id uint32) (*Room, error) {
 }
 
 // save room redis
-func (rm Room) Save() error {
+func (rm Room) save() error {
 	pipe := _redisClient.Pipeline()
 	defer pipe.Close()
 
@@ -234,6 +238,14 @@ func (rm Room) Save() error {
 	return nil
 }
 
+// broadcasting
+func (rm Room) Broadcast(msgID int32, data []byte, bytes uint16) bool {
+	for _, ur := range rm.members {
+		ur.Session.SendPacket(msgID, data, bytes)
+	}
+	return true
+}
+
 // to string
 func (rm Room) ToString() string {
 	var users string
@@ -243,4 +255,178 @@ func (rm Room) ToString() string {
 
 	return fmt.Sprintf("%d %s %s %s \r\n{%s}", rm.rID, RoomTypeName[rm.rType], RoomStatusName[rm.rStatus],
 		rm.createTime.Format("2006-01-02 15:04:05"), users)
+}
+
+//
+func EnterRm(rmNo uint32, user *User) error {
+	var mu = &_sync
+	mu.Lock()
+	defer mu.Unlock()
+
+	// quick join
+	if rmNo == 0 {
+		for _, rm := range _rooms {
+			if len(rm.members) < 2 {
+				rmNo = rm.rID
+				break
+			}
+		}
+	}
+
+	if rmNo == 0 {
+		// create room
+		rm := NewRoom()
+		_rooms[rm.rID] = rm
+		rmNo = rm.rID
+	}
+
+	if _rooms[rmNo] == nil {
+		rm, err := load(rmNo)
+		if err != nil {
+			return err
+		}
+		_rooms[rmNo] = rm
+		rm.EnterMember(user)
+		return nil
+	}
+
+	_rooms[rmNo].EnterMember(user)
+	return nil
+}
+
+//
+func LeaveRm(rmNo uint32, user *User) error {
+	var mu = &_sync
+	mu.Lock()
+	defer mu.Unlock()
+
+	if rmNo == 0 {
+		rmNo = user.RmNo
+	}
+
+	if rmNo == 0 {
+		return errors.New("Not room member")
+	}
+
+	if _rooms[rmNo] == nil {
+		rm, err := load(rmNo)
+		if err != nil {
+			return err
+		}
+		_rooms[rmNo] = rm
+		rm.LeaveMember(user)
+		return nil
+	}
+
+	_rooms[rmNo].LeaveMember(user)
+
+	// room destory
+	if len(_rooms[rmNo].members) == 0 {
+		//delete(ch.rooms, rmNo)
+	}
+	return nil
+}
+
+//
+func FindRm(rmNo uint32) (*Room, error) {
+	if _rooms[rmNo] == nil {
+		return nil, errors.New("Not find room")
+	}
+	return _rooms[rmNo], nil
+}
+
+// load room from redis
+func LoadRoom() {
+	// redis slelct db 2(room, ch)
+	pipe := _redisClient.Pipeline()
+	defer pipe.Close()
+	pipe.Select(2)
+	_, err := pipe.Exec()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	_rooms = make(map[uint32]*Room)
+
+	var cursor uint64
+	var outputs []string
+	outputs, cursor, err = _redisClient.HScan("blue_server.room.type", cursor, "", 10).Result()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for i := 0; i < len(outputs); i += 2 {
+		// redis key
+		no := outputs[i]
+		iNo, _ := strconv.Atoi(no)
+		// redis value
+		rType := outputs[i+1]
+		irType := RoomTypeValue[rType]
+
+		_rooms[uint32(iNo)] = &Room{
+			rID:     uint32(iNo),
+			rType:   irType,
+			members: make(map[uint32]*User),
+			//rooms:   make(map[uint32]*Room),
+		}
+		//log.Println(_channels[uint32(iNo)])
+	}
+	// room count
+	//cursor = 0
+	//outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
+	//log.Println(outputs)
+	// user count
+	cursor = 0
+	outputs, cursor, err = _redisClient.HScan("blue_server.room.status", cursor, "", 10).Result()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	//log.Println(outputs)
+	for i := 0; i < len(outputs); i += 2 {
+		// redis key
+		no := outputs[i]
+		iNo, _ := strconv.Atoi(no)
+		// redis value
+		rStatus := outputs[i+1]
+		irStatus := RoomStatusValue[rStatus]
+
+		_rooms[uint32(iNo)].rStatus = irStatus
+	}
+
+	cursor = 0
+	outputs, cursor, err = _redisClient.HScan("blue_server.room.create.time", cursor, "", 10).Result()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	//log.Println(outputs)
+	for i := 0; i < len(outputs); i += 2 {
+		// redis key
+		no := outputs[i]
+		iNo, _ := strconv.Atoi(no)
+		// redis value
+		rcreateTime := outputs[i+1]
+		createTime, _ := time.Parse("2006-01-02 15:04:05", rcreateTime)
+		_rooms[uint32(iNo)].createTime = createTime
+	}
+
+	cursor = 0
+	outputs, cursor, err = _redisClient.HScan("blue_server.room.member", cursor, "", 10).Result()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	//log.Println(outputs)
+	for i := 0; i < len(outputs); i += 2 {
+		// redis key
+		no := outputs[i]
+		_, _ = strconv.Atoi(no)
+		// redis value
+		_ = outputs[i+1]
+		// find member add user
+		//log.Println(iNo, rmember)
+	}
 }

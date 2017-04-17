@@ -46,6 +46,7 @@ func main() {
 	// generate channel list
 	//contents.NewChannel()
 	contents.LoadChannel()
+	contents.LoadRoom()
 
 	// monitoring
 	go monitor()
@@ -84,6 +85,7 @@ func ServerStart() {
 	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], contents.GetHandlerReqRelay())
 	server.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Req"], contents.GetHandlerReqEnterCh())
 	server.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Req"], contents.GetHandlerReqEnterRm())
+	server.AddMsgHandler(msg.Msg_Id_value["Leave_Rm_Req"], contents.GetHandlerReqLeaveRm())
 	server.AddMsgHandler(msg.Msg_Id_value["Regist_Req"], contents.GetHandlerReqRegist())
 
 	err := server.Listen()
@@ -92,8 +94,8 @@ func ServerStart() {
 		return
 	}
 
-	var s string
-	fmt.Scanf("%s", &s)
+	//var s string
+	//fmt.Scanf("%s", &s)
 	//server.Stop()
 
 }
@@ -107,7 +109,6 @@ func clientConnect(name string) {
 	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay())
 	client.AddMsgHandler(msg.Msg_Id_value["Relay_Not"], contents.GetHandlerNotRelay())
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Ans"], contents.GetHandlerAnsEnterCh())
-	//client.AddMsgHandler(msg.Msg_Id_value["Enter_Ch_Not"], contents.GetHandlerNotEnterCh())
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm())
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Not"], contents.GetHandlerNotEnterRm())
 
@@ -385,20 +386,6 @@ func redisTest() {
 	// _, _ = client.HSet("blue_server.room.create.time", strconv.Itoa(rid), "2017-04-11 11:46:12").Result()
 	// _, _ = client.HSet("blue_server.room.member", strconv.Itoa(rid), "[1234]").Result()
 	// fmt.Println(result, err)
-
-	// room obj info
-	user, err := contents.LoadUser(1234)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	fmt.Println(user.ToString())
-	room, err := contents.LoadRoom(1)
-	if err == nil {
-		room.EnterMember(user)
-		fmt.Println(room.ToString())
-	}
 }
 
 func monitor() {

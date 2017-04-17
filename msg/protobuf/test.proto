@@ -19,21 +19,19 @@ enum Msg_Id {
 	Login_Req = 1;			// 로그인
 	Login_Ans = 2;
 
-	Enter_Ch_Req = 3;		// 채널 입장
-	Enter_Ch_Ans = 4;
-	Enter_Ch_Not = 5;
+	Enter_Ch_Req = 11;		// 채널 입장
+	Enter_Ch_Ans = 12;
 
-	Leave_Ch_Req = 6;		// 채널 퇴장
-	Leave_Ch_Ans = 7;
-	Leave_Ch_Not = 8;
+	Leave_Ch_Req = 13;		// 채널 퇴장
+	Leave_Ch_Ans = 14;
 
-	Enter_Rm_Req = 13;		// 방 입장
-	Enter_Rm_Ans = 14;
-	Enter_Rm_Not = 15;
+	Enter_Rm_Req = 21;		// 방 입장
+	Enter_Rm_Ans = 22;
+	Enter_Rm_Not = 23;
 
-	Leave_Rm_Req = 16;		// 방 퇴장
-	Leave_Rm_Ans = 17;
-	Leave_Rm_Not = 18;
+	Leave_Rm_Req = 31;		// 방 퇴장
+	Leave_Rm_Ans = 32;
+	Leave_Rm_Not = 27;
 
 	Regist_Req = 2001;		// 등록
 	Regist_Ans = 2002;

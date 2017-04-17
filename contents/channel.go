@@ -16,7 +16,7 @@ type Channel struct {
 	chType  ChType
 	sync    sync.Mutex       // sync obj
 	members map[uint32]*User // channel user
-	rooms   map[uint32]*Room // channel room
+	//rooms   map[uint32]*Room // channel room
 }
 
 // channel type
@@ -57,7 +57,7 @@ func NewChannel() {
 			no:      uint32(i),
 			chType:  _ChDefault,
 			members: make(map[uint32]*User),
-			rooms:   make(map[uint32]*Room),
+			//rooms:   make(map[uint32]*Room),
 		}
 	}
 }
@@ -96,13 +96,13 @@ func LoadChannel() {
 			no:      uint32(iNo),
 			chType:  iChType,
 			members: make(map[uint32]*User),
-			rooms:   make(map[uint32]*Room),
+			//rooms:   make(map[uint32]*Room),
 		}
 		//log.Println(_channels[uint32(iNo)])
 	}
 	// room count
-	cursor = 0
-	outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
+	//cursor = 0
+	//outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
 	//log.Println(outputs)
 	// user count
 	cursor = 0
@@ -130,12 +130,12 @@ func saveChannel() {
 			log.Println(err)
 			continue
 		}
-		roomCount := len(ch.rooms)
-		_, err = _redisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
-		if err != nil {
-			log.Println(err)
-			continue
-		}
+		// roomCount := len(ch.rooms)
+		// _, err = _redisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
+		// if err != nil {
+		// 	log.Println(err)
+		// 	continue
+		// }
 		userCount := len(ch.members)
 		_, err = _redisClient.HSet("blue_server.ch.user.count", strconv.Itoa(int(ch.no)), strconv.Itoa(userCount)).Result()
 		if err != nil {
@@ -149,9 +149,16 @@ func saveChannel() {
 		// }
 
 		// save room info
-		for _, rm := range ch.rooms {
-			rm.Save()
-		}
+		// for _, rm := range ch.rooms {
+		// 	rm.Save()
+		// }
+	}
+
+	var mu = &_sync
+	mu.Lock()
+	defer mu.Unlock()
+	for _, rm := range _rooms {
+		rm.save()
 	}
 }
 
@@ -181,9 +188,9 @@ func LeaveCh(user *User) {
 	defer mu.Unlock()
 
 	// leave room
-	if user.RmNo != 0 && user.ChNo != 0 {
-		_channels[user.ChNo].rooms[user.RmNo].LeaveMember(user)
-	}
+	//if user.RmNo != 0 && user.ChNo != 0 {
+	//	_channels[user.ChNo].rooms[user.RmNo].LeaveMember(user)
+	//}
 	// leave current channel
 	if user.ChNo != 0 {
 		delete(_channels[user.ChNo].members, user.ID)
@@ -220,26 +227,6 @@ func FindCh(chNo uint32) (*Channel, error) {
 }
 
 //
-func (ch *Channel) EnterRm(rmNo uint32, user *User) error {
-	var mu = &ch.sync
-	mu.Lock()
-	defer mu.Unlock()
-
-	if ch.rooms[rmNo] == nil {
-		rm, err := LoadRoom(rmNo)
-		if err != nil {
-			return err
-		}
-		ch.rooms[rmNo] = rm
-		rm.EnterMember(user)
-		return nil
-	}
-
-	ch.rooms[rmNo].EnterMember(user)
-	return nil
-}
-
-//
 func MonitorChannel() string {
 	var str string
 	for _, ch := range _channels {
@@ -248,11 +235,18 @@ func MonitorChannel() string {
 		mu.Lock()
 		defer mu.Unlock()
 
-		for _, rm := range ch.rooms {
-			str += "	rm: " + strconv.Itoa(int(rm.rID)) + "\r\n"
-		}
-
 		for _, ur := range ch.members {
+			str += "	user: " + ur.Name + "\r\n"
+		}
+	}
+
+	var mu = &_sync
+	mu.Lock()
+	defer mu.Unlock()
+	for _, rm := range _rooms {
+		str += "rm: " + strconv.Itoa(int(rm.rID)) + "\r\n"
+
+		for _, ur := range rm.members {
 			str += "	user: " + ur.Name + "\r\n"
 		}
 	}
@@ -263,4 +257,16 @@ func MonitorChannel() string {
 func UpdateChannel() {
 
 	saveChannel()
+}
+
+// generate id
+func RoomGenID() uint32 {
+	pipe := _redisClient.Pipeline()
+	defer pipe.Close()
+
+	pipe.Select(2)
+	_, _ = pipe.Exec()
+
+	genID, _ := _redisClient.Incr("blue_server.manager.room.genid").Result()
+	return uint32(genID)
 }

@@ -238,13 +238,13 @@ func (u User) ToString() string {
 }
 
 // generate id
-func GenID() uint32 {
+func UserGenID() uint32 {
 	pipe := _redisClient.Pipeline()
 	defer pipe.Close()
 
 	pipe.Select(1)
 	_, _ = pipe.Exec()
 
-	genID, _ := _redisClient.Incr("blue_server.manager.genid").Result()
+	genID, _ := _redisClient.Incr("blue_server.manager.user.genid").Result()
 	return uint32(genID)
 }

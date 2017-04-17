@@ -40,6 +40,12 @@ func CloseHandler(session *network.Session) {
 	// leave channel
 	LeaveCh(user)
 
+	// leave room
+	rm, err := FindRm(user.RmNo)
+	if err == nil {
+		rm.LeaveMember(user)
+	}
+
 	user.Status = UserStatusValue["LOGOFF"]
 	user.Save()
 }
@@ -101,7 +107,7 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 
 	// create user obj
 	user := NewUser()
-	user.ID = GenID()
+	user.ID = UserGenID()
 	user.Name = *req.Name
 	user.Platform = UserPlatform(*req.Platform)
 	user.Status = UserStatusValue["LOGON"]
@@ -221,24 +227,33 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	}
 	log.Printf("Server ReqRelay msg: %d %s \r\n", m.msgID, req.String())
 
-	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
-	ans := &msg.RelayAns{
-		Err: &errCode,
+	user, err := FindUser(session)
+	if err != nil {
+		log.Println(err)
+		return false
 	}
 
-	log.Println(req)
-
-	abuff, _ := proto.Marshal(ans)
-	session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
-
+	rm, err := FindRm(user.RmNo)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
 	// room bradcasting
 	not := &msg.RelayNot{
 		RmNo: req.RmNo,
 		Data: req.Data,
 	}
-
 	nbuff, _ := proto.Marshal(not)
-	session.SendPacket(msg.Msg_Id_value["Relay_Not"], nbuff, uint16(len(nbuff)))
+	rm.Broadcast(msg.Msg_Id_value["Relay_Not"], nbuff, uint16(len(nbuff)))
+
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.RelayAns{
+		Err: &errCode,
+	}
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
+
+	//session.SendPacket(msg.Msg_Id_value["Relay_Not"], nbuff, uint16(len(nbuff)))
 	//_recorder.Record("ReqRelay", time.Since(t1))
 	return true
 }
@@ -315,14 +330,7 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 		return false
 	}
 
-	// find channel
-	ch, err := FindCh(user.ChNo)
-	if err != nil {
-		log.Println(err)
-		return false
-	}
-
-	err = ch.EnterRm(*req.RmNo, user)
+	err = EnterRm(*req.RmNo, user)
 	if err != nil {
 		log.Println(err)
 		return false
@@ -334,6 +342,52 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 	}
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
+	//_recorder.Record("ReqEtnerRm", time.Since(t1))
+	return true
+}
+
+// req leave room
+type ReqLeaveRm struct {
+	msgID int32
+}
+
+// req leave room
+func GetHandlerReqLeaveRm() ReqLeaveRm {
+	return ReqLeaveRm{msgID: msg.Msg_Id_value["Leave_Rm_Req"]}
+}
+
+// req leave channel
+func (m ReqLeaveRm) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
+	// unmarshaling
+	req := &msg.LeaveRmReq{}
+	err := proto.Unmarshal(data[:length], req)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	log.Printf("Server ReqLeaveRm msg: %d %s\r\n", m.msgID, req.String())
+
+	// find user
+	user, err := FindUser(session)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	err = LeaveRm(*req.RmNo, user)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	// ans
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.LeaveRmAns{
+		Err: &errCode,
+	}
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["Leave_Rm_Ans"], abuff, uint16(len(abuff)))
 	//_recorder.Record("ReqEtnerRm", time.Since(t1))
 	return true
 }
