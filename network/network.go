@@ -7,6 +7,7 @@ import (
 	"syscall"
 )
 
+//
 type Session struct {
 	_id   uint16
 	_conn net.Conn
@@ -16,6 +17,7 @@ func (session *Session) Read(data []byte) (int, error) {
 	return session._conn.Read(data)
 }
 
+//
 func (session *Session) Close() {
 	session._conn.Close()
 }
@@ -38,8 +40,10 @@ type NetServer struct {
 	_connectHandler interface{}
 	_recvHandler    interface{}
 	_closeHandler   interface{}
+	_running        bool
 }
 
+//
 func NewNetServer(net string, addr string, connHandler interface{}, recvHandler interface{}, closeHandler interface{}) *NetServer {
 	return &NetServer{
 		_net:            net,
@@ -50,14 +54,17 @@ func NewNetServer(net string, addr string, connHandler interface{}, recvHandler 
 		_connectHandler: connHandler,
 		_recvHandler:    recvHandler,
 		_closeHandler:   closeHandler,
+		_running:        true,
 	}
 }
 
+//
 func (server *NetServer) RemoveSession(session *Session) {
 	server._sessions[session._id] = nil
 }
 
-func (server *NetServer) Listen() error {
+//
+func (server *NetServer) Listen(c chan bool) error {
 	ln, err := net.Listen(server._net, server._addr)
 	if err != nil {
 		return err
@@ -82,11 +89,18 @@ func (server *NetServer) Listen() error {
 		} else {
 			go server.handlerConnect(session)
 		}
+
+		if server._running == false {
+			break
+		}
 	}
+
+	c <- true
+	return nil
 }
 
 func (server *NetServer) handlerConnect(session *Session) {
-	// 연결 처리
+
 	fmt.Printf("accept session sid:%d\r\n", session._id)
 	if server._recvHandler != nil {
 		go server._recvHandler.(func(*NetServer, *Session))(server, session)
@@ -108,7 +122,7 @@ func (server *NetServer) handlerRecv(session *Session) {
 		n, err := session._conn.Read(data)
 		if err != nil {
 			if err != syscall.EINVAL {
-				// 연결 종료
+
 				//fmt.Printf("close sid:%d\r\n", session._id)
 				session.Close()
 				server._closeHandler.(func(*Session))(session)
@@ -119,7 +133,7 @@ func (server *NetServer) handlerRecv(session *Session) {
 			return
 		}
 
-		// 프로토콜을 이용해서 메시지 파싱및 핸들러 호출
+		// protocol parsing
 		server.packetParsing(session, data, n)
 	}
 }
@@ -146,6 +160,7 @@ type NetClient struct {
 	_recvHandler    interface{}
 }
 
+//
 func NewNetClient(connHandler interface{}, recvHandler interface{}) *NetClient {
 	return &NetClient{
 		_handler:        make(_MsgHandlerMap),
@@ -154,6 +169,7 @@ func NewNetClient(connHandler interface{}, recvHandler interface{}) *NetClient {
 	}
 }
 
+//
 func (client *NetClient) Connect(n string, addr string) error {
 	conn, err := net.Dial(n, addr)
 	if err != nil {
@@ -173,6 +189,7 @@ func (client *NetClient) Connect(n string, addr string) error {
 	return nil
 }
 
+//
 func (client *NetClient) Connected() bool {
 	if client._session == nil {
 		return false
@@ -202,7 +219,7 @@ func (client *NetClient) handlerRecv(session *Session) {
 			return
 		}
 
-		// 프로토콜을 이용해서 메시지 파싱및 핸들러 호출
+		// protocol parsing
 		client.packetParsing(session, data, n)
 	}
 }
@@ -222,15 +239,18 @@ func (client *NetClient) packetParsing(session *Session, data []byte, bytes int)
 	client._handler[int32(msgID)].Execute(session, body, length-4)
 }
 
+//
 func (client *NetClient) SendPacket(data []byte) {
 	client._session._conn.Write(data)
 }
 
+//
 func (client *NetClient) Close() {
 	client._session.Close()
 	client._session = nil
 }
 
+//
 func (session *Session) SendPacket(msgId int32, data []byte, bytes uint16) error {
 	buff := make([]byte, 4096)
 	var msgLen uint16
@@ -244,6 +264,7 @@ func (session *Session) SendPacket(msgId int32, data []byte, bytes uint16) error
 	return nil
 }
 
+//
 func (session *Session) SendPacketStr(data []byte) error {
 	session._conn.Write(data)
 	return nil

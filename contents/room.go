@@ -182,8 +182,6 @@ func LoadRoom(id uint32) (*Room, error) {
 	iStatus := RoomStatusValue[rStatus]
 	iType := RoomTypeValue[rType]
 
-	// load member ???
-
 	return &Room{
 		rID:        id,
 		rType:      iType,

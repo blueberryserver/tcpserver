@@ -9,5 +9,5 @@ message PingReq {
 }
 
 message PongAns {
-	required ErrorCode err = 1;	
+	required ErrorCode err = 1;
 }

@@ -6,13 +6,11 @@ import (
 )
 
 type _Server struct {
-	// 서버 네트워크 포인터
+	// server net session
 	_server *NetServer
 
-	// 세션 맵 동기화 객체
+	// sync obj
 	_lockSession sync.Mutex
-	// 세션 맵
-	//_sessions _SessionMap
 }
 
 //
@@ -32,7 +30,10 @@ func NewServer(net string, addr string, closeHandler interface{}) *_Server {
 
 //
 func (server *_Server) Listen() error {
-	go server._server.Listen()
+	c := make(chan bool)
+	go server._server.Listen(c)
+
+	_ = <-c
 	return nil
 }
 

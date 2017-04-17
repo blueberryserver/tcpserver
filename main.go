@@ -30,7 +30,7 @@ func main() {
 	// server start
 	ServerStart()
 
-	// 1초간 대기
+	// wait 1 second
 	time.Sleep(1 * time.Second)
 	// client connection
 	//go clientConnect("noom")
@@ -44,19 +44,17 @@ func main() {
 
 	//protobufTest()
 	//redisTest()
-	// 입력 대기
+	// wait keyborad input
 	var s string
 	fmt.Scanf("%s", &s)
 }
 
 // server start
 func ServerStart() {
-	fmt.Printf("net test\r\n")
-	// networt test
-	// 서버 시작 리슨 요청
+	fmt.Printf("server start\r\n")
 	server := network.NewServer("tcp", ":20202", contents.CloseHandler)
 
-	// ping req 처리 핸들러 등록
+	// regist server handler
 	server.AddMsgHandler(msg.Msg_Id_value["Ping_Req"], contents.GetHandlerReqPing())
 	server.AddMsgHandler(msg.Msg_Id_value["Login_Req"], contents.GetHandlerReqLogin())
 	server.AddMsgHandler(msg.Msg_Id_value["Relay_Req"], contents.GetHandlerReqRelay())
@@ -72,9 +70,9 @@ func ServerStart() {
 }
 
 func clientConnect(name string) {
-	// 클라이언트 접속 요청
+	// client connection
 	client := network.NewClient()
-	// pong Ans 처리 핸들러 등록
+	// regist handler
 	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong())
 	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin())
 	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay())
@@ -84,14 +82,14 @@ func clientConnect(name string) {
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm())
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Not"], contents.GetHandlerNotEnterRm())
 
-	// 연결 시도
+	// try connect
 	err := client.Connect("tcp", ":20202")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// 1초간 대기
+	// wait i second
 	{
 		time.Sleep(1 * time.Second)
 
@@ -169,9 +167,8 @@ func clientConnect(name string) {
 }
 
 func clientConnectForRegist(name string, platform uint32) {
-	// 클라이언트 접속 요청
+	// create client session
 	client := network.NewClient()
-	// pong Ans 처리 핸들러 등록
 	client.AddMsgHandler(msg.Msg_Id_value["Pong_Ans"], contents.GetHandlerAnsPong())
 	client.AddMsgHandler(msg.Msg_Id_value["Login_Ans"], contents.GetHandlerAnsLogin())
 	client.AddMsgHandler(msg.Msg_Id_value["Relay_Ans"], contents.GetHandlerAnsRelay())
@@ -181,14 +178,12 @@ func clientConnectForRegist(name string, platform uint32) {
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Ans"], contents.GetHandlerAnsEnterRm())
 	client.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Not"], contents.GetHandlerNotEnterRm())
 
-	// 연결 시도
 	err := client.Connect("tcp", ":20202")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// 1초간 대기
 	{
 		time.Sleep(1 * time.Second)
 
