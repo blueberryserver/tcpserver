@@ -67,6 +67,12 @@ func (m ReqPing) Execute(session *network.Session, data []byte, length uint16) b
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.PongAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Pong_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
@@ -101,27 +107,35 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.RegistAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Regist_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	log.Printf("Server ReqRegist msg: %d %s\r\n", m.msgID, req.String())
 
 	// redis query by user id
 
-	// pipe := _redisClient.Pipeline()
-	// defer pipe.Close()
-	// pipe.Select(1)
-	// _, _ = pipe.Exec()
+	pipe := _redisClient.Pipeline()
+	defer pipe.Close()
+	pipe.Select(1)
+	_, _ = pipe.Exec()
 
-	// uID, err := _redisClient.HGet("blue_server.user.id", *req.Name).Result()
-	// if err != nil {
-	// 	log.Println(err)
-	// 	return false
-	// }
+	uID, err := _redisClient.HGet("blue_server.user.id", *req.Name).Result()
+	if uID != "" {
+		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_EXIST_NAME_FAIL)
+		ans := &msg.RegistAns{
+			Err: &errCode,
+		}
 
-	// if uID != "NULL" {
-	// 	log.Println(err)
-	// 	return false
-	// }
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Regist_Ans"], abuff, uint16(len(abuff)))
+		return false
+	}
 
 	// create user obj
 	user := NewUser()
@@ -165,6 +179,12 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LoginAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
@@ -179,6 +199,12 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	uID, err := _redisClient.HGet("blue_server.user.id", *req.Id).Result()
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LoginAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
@@ -187,6 +213,12 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	user, err := LoadUser(uint32(id))
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LoginAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	// print loaded user info
@@ -241,6 +273,12 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.RelayAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	log.Printf("Server ReqRelay msg: %d %s \r\n", m.msgID, req.String())
@@ -248,12 +286,24 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	user, err := FindUser(session)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.RelayAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
 	rm, err := FindRm(user.RmNo)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.RelayAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	// room bradcasting
@@ -294,6 +344,12 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.EnterChAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Enter_Ch_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	log.Printf("Server ReqEnterCh msg: %d %s\r\n", m.msgID, req.String())
@@ -301,6 +357,12 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 	user, err := FindUser(session)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.EnterChAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Enter_Ch_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
@@ -336,6 +398,12 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.EnterRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
@@ -345,12 +413,24 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 	user, err := FindUser(session)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.EnterRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
 	err = EnterRm(*req.RmNo, user)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.EnterRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	// ans
@@ -382,6 +462,12 @@ func (m ReqLeaveRm) Execute(session *network.Session, data []byte, length uint16
 	err := proto.Unmarshal(data[:length], req)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LeaveRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Leave_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
@@ -391,12 +477,24 @@ func (m ReqLeaveRm) Execute(session *network.Session, data []byte, length uint16
 	user, err := FindUser(session)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LeaveRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Leave_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 
 	err = LeaveRm(*req.RmNo, user)
 	if err != nil {
 		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LeaveRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Leave_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
 	// ans

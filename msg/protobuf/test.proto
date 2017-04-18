@@ -13,6 +13,8 @@ enum ErrorCode {
 	ERR_SUCCESS = 0;
 	ERR_LOGIN_FAIL = 1;
 	ERR_ARGUMENT_FAIL = 2;
+	ERR_EXIST_NAME_FAIL = 3;
+	ERR_SYSTEM_FAIL = 4;
 }
 
 enum Msg_Id {

@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	_ "strconv"
 	"time"
 
 	redis "gopkg.in/redis.v4"
-
-	"os"
-
-	"io"
 
 	"log"
 
@@ -386,6 +384,20 @@ func redisTest() {
 	// _, _ = client.HSet("blue_server.room.create.time", strconv.Itoa(rid), "2017-04-11 11:46:12").Result()
 	// _, _ = client.HSet("blue_server.room.member", strconv.Itoa(rid), "[1234]").Result()
 	// fmt.Println(result, err)
+
+	// selectdb 2
+	pipe := client.Pipeline()
+	pipe.Select(1)
+	_, _ = pipe.Exec()
+
+	rid := "kjm00"
+	result, err := client.HGet("blue_server.user.id", rid).Result()
+	if result == "" {
+		fmt.Println(err)
+	}
+
+	result, err = client.HGet("blue_server.user.name", "1237").Result()
+	fmt.Println(result, err)
 }
 
 func monitor() {
