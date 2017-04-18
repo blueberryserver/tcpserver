@@ -105,6 +105,24 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	}
 	log.Printf("Server ReqRegist msg: %d %s\r\n", m.msgID, req.String())
 
+	// redis query by user id
+
+	// pipe := _redisClient.Pipeline()
+	// defer pipe.Close()
+	// pipe.Select(1)
+	// _, _ = pipe.Exec()
+
+	// uID, err := _redisClient.HGet("blue_server.user.id", *req.Name).Result()
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return false
+	// }
+
+	// if uID != "NULL" {
+	// 	log.Println(err)
+	// 	return false
+	// }
+
 	// create user obj
 	user := NewUser()
 	user.ID = UserGenID()
