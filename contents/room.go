@@ -50,23 +50,23 @@ type RoomStatus uint32
 
 // room status
 const (
-	_RmNone  RoomStatus = 1
-	_RmReady RoomStatus = 2
-	_RmPlay  RoomStatus = 3
+	_RmNone  RoomStatus = 0
+	_RmReady RoomStatus = 1
+	_RmPlay  RoomStatus = 2
 )
 
 // room status
 var RoomStatusName = map[RoomStatus]string{
-	1: "NONE",
-	2: "READY",
-	3: "PLAY",
+	0: "NONE",
+	1: "READY",
+	2: "PLAY",
 }
 
 // room status
 var RoomStatusValue = map[string]RoomStatus{
-	"NONE":  1,
-	"READY": 2,
-	"PLAY":  3,
+	"NONE":  0,
+	"READY": 1,
+	"PLAY":  2,
 }
 
 //
@@ -429,4 +429,28 @@ func LoadRoom() {
 		// find member add user
 		//log.Println(iNo, rmember)
 	}
+}
+
+//
+func GetRoomList() []*msg.ListRmAns_RoomInfo {
+	rmList := make([]*msg.ListRmAns_RoomInfo, len(_rooms))
+	var mu = &_sync
+	mu.Lock()
+	defer mu.Unlock()
+	index := 0
+	for _, rm := range _rooms {
+		rmList[index] = &msg.ListRmAns_RoomInfo{}
+		rmList[index].RmNo = &rm.rID
+		status := uint32(rm.rStatus)
+		rmList[index].RmStatus = &status
+		rmList[index].Names = make([]string, len(rm.members))
+
+		userIndex := 0
+		for _, ur := range rm.members {
+			rmList[index].Names[userIndex] = ur.Name
+			userIndex++
+		}
+		index++
+	}
+	return rmList
 }

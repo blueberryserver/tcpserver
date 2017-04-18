@@ -7,6 +7,7 @@ import (
 
 	"github.com/blueberryserver/tcpserver/msg"
 	"github.com/blueberryserver/tcpserver/network"
+	"github.com/blueberryserver/tcpserver/util"
 	"github.com/funny/pprof"
 	"github.com/golang/protobuf/proto"
 	redis "gopkg.in/redis.v4"
@@ -37,16 +38,19 @@ func CloseHandler(session *network.Session) {
 		log.Println(err)
 		return
 	}
+
 	// leave channel
-	LeaveCh(user)
+	//LeaveCh(user)
 
 	// leave room
-	rm, err := FindRm(user.RmNo)
-	if err == nil {
-		rm.LeaveMember(user)
-	}
+	//rm, err := FindRm(user.RmNo)
+	//if err == nil {
+	//	rm.LeaveMember(user)
+	//}
 
+	// logout
 	user.Status = UserStatusValue["LOGOFF"]
+	user.LogoutTime = time.Now()
 	user.Save()
 }
 
@@ -143,10 +147,13 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	user.Name = *req.Name
 	user.Platform = UserPlatform(*req.Platform)
 	user.Status = UserStatusValue["LOGON"]
-	user.VcGem = 0
-	user.VcGold = 0
+	user.VcGem = 100
+	user.VcGold = 100
 	user.CreateTime = time.Now()
 	user.LoginTime = time.Now()
+	user.Key = util.RandStr(16)
+	user.ChNo = 0
+	user.RmNo = 0
 	err = user.Save()
 
 	// ans
@@ -187,7 +194,6 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
-
 	log.Printf("Server ReqLogin msg: %d %s\r\n", m.msgID, req.String())
 
 	// redis query by user id
@@ -207,19 +213,21 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
-
-	// load User data from redis
 	id, _ := strconv.Atoi(uID)
-	user, err := LoadUser(uint32(id))
+	user, err := FindUserByID(uint32(id))
 	if err != nil {
-		log.Println(err)
-		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
-		ans := &msg.LoginAns{
-			Err: &errCode,
+		// load User data from redis
+		user, err = LoadUser(uint32(id))
+		if err != nil {
+			log.Println(err)
+			errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+			ans := &msg.LoginAns{
+				Err: &errCode,
+			}
+			abuff, _ := proto.Marshal(ans)
+			session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
+			return false
 		}
-		abuff, _ := proto.Marshal(ans)
-		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
-		return false
 	}
 	// print loaded user info
 	//log.Println(user.ToString())
@@ -248,6 +256,8 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 		Gem:      &user.VcGem,
 		Gold:     &user.VcGold,
 		SecKey:   &user.Key,
+		ChNo:     &user.ChNo,
+		RmNo:     &user.RmNo,
 	}
 
 	abuff, _ := proto.Marshal(ans)
@@ -505,6 +515,47 @@ func (m ReqLeaveRm) Execute(session *network.Session, data []byte, length uint16
 	abuff, _ := proto.Marshal(ans)
 	session.SendPacket(msg.Msg_Id_value["Leave_Rm_Ans"], abuff, uint16(len(abuff)))
 	//_recorder.Record("ReqEtnerRm", time.Since(t1))
+	return true
+}
+
+//
+type ReqListRm struct {
+	msgID int32
+}
+
+//
+func GetHandlerReqListRm() ReqListRm {
+	return ReqListRm{msgID: msg.Msg_Id_value["List_Rm_Req"]}
+}
+
+//
+func (m ReqListRm) Execute(session *network.Session, data []byte, length uint16) bool {
+	//t1 := time.Now()
+	// unmarshaling
+	req := &msg.ListRmReq{}
+	err := proto.Unmarshal(data[:length], req)
+	if err != nil {
+		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.ListRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["List_Rm_Ans"], abuff, uint16(len(abuff)))
+		return false
+	}
+
+	rmList := GetRoomList()
+	log.Println(rmList)
+	// ans
+	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
+	ans := &msg.ListRmAns{
+		Err: &errCode,
+	}
+	ans.RmLists = rmList
+	abuff, _ := proto.Marshal(ans)
+	session.SendPacket(msg.Msg_Id_value["List_Rm_Ans"], abuff, uint16(len(abuff)))
+	//_recorder.Record("ReqListRm", time.Since(t1))
 	return true
 }
 

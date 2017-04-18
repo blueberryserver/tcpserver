@@ -21,6 +21,7 @@ type User struct {
 	ChNo       uint32
 	RmNo       uint32
 	LoginTime  time.Time
+	LogoutTime time.Time
 	CreateTime time.Time
 
 	Session *network.Session
@@ -164,6 +165,20 @@ func LoadUser(id uint32) (*User, error) {
 		Session:    nil}, nil
 }
 
+// loading user info from redis
+func LoadUserByName(name string) (*User, error) {
+	result, err := _redisClient.HGet("blue_server.user.id", name).Result()
+	if err != nil {
+		return nil, err
+	}
+	id, err := strconv.Atoi(result)
+	if err != nil {
+		return nil, err
+	}
+
+	return LoadUser(uint32(id))
+}
+
 // save redis user
 func (u User) Save() error {
 	pipe := _redisClient.Pipeline()
@@ -216,6 +231,12 @@ func (u User) Save() error {
 	result, err = _redisClient.HSet("blue_server.user.login.time", id, u.LoginTime.Format("2006-01-02 15:04:05")).Result()
 	if err != nil {
 		return err
+	}
+	if u.Status == _LogOff {
+		result, err = _redisClient.HSet("blue_server.user.logout.time", id, u.LogoutTime.Format("2006-01-02 15:04:05")).Result()
+		if err != nil {
+			return err
+		}
 	}
 
 	result, err = _redisClient.HSet("blue_server.user.room.no", id, strconv.Itoa(int(u.RmNo))).Result()

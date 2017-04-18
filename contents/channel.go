@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"sync"
+	"time"
 
 	"strconv"
 
@@ -100,10 +101,6 @@ func LoadChannel() {
 		}
 		//log.Println(_channels[uint32(iNo)])
 	}
-	// room count
-	//cursor = 0
-	//outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
-	//log.Println(outputs)
 	// user count
 	cursor = 0
 	outputs, cursor, err = _redisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
@@ -210,8 +207,24 @@ func MoveCh(chNo uint32, user *User) {
 
 // find user
 func FindUser(session *network.Session) (*User, error) {
+	var mu = &_channels[0].sync
+	mu.Lock()
+	defer mu.Unlock()
 	for _, v := range _channels[0].members {
 		if v.Session == session {
+			return v, nil
+		}
+	}
+	return &User{}, errors.New("Not find user session")
+}
+
+// find user
+func FindUserByID(id uint32) (*User, error) {
+	var mu = &_channels[0].sync
+	mu.Lock()
+	defer mu.Unlock()
+	for _, v := range _channels[0].members {
+		if v.ID == id {
 			return v, nil
 		}
 	}
@@ -255,7 +268,7 @@ func MonitorChannel() string {
 
 // update channel info
 func UpdateChannel() {
-
+	checkLogoutUser()
 	saveChannel()
 }
 
@@ -269,4 +282,23 @@ func RoomGenID() uint32 {
 
 	genID, _ := _redisClient.Incr("blue_server.manager.room.genid").Result()
 	return uint32(genID)
+}
+
+func checkLogoutUser() {
+	log.Println("Check Logout User")
+	var mu = &_channels[0].sync
+	mu.Lock()
+	defer mu.Unlock()
+	for _, v := range _channels[0].members {
+		if v.Status == _LogOff && time.Now().After(v.LogoutTime.Add(30*time.Second)) {
+			// leave ch
+			LeaveCh(v)
+
+			// leave rm
+			LeaveRm(v.RmNo, v)
+
+			// save data
+			v.Save()
+		}
+	}
 }

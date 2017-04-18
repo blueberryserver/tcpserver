@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	_ "strconv"
 	"time"
@@ -10,6 +11,9 @@ import (
 	redis "gopkg.in/redis.v4"
 
 	"log"
+
+	"crypto/md5"
+	"encoding/hex"
 
 	"github.com/blueberryserver/tcpserver/contents"
 	"github.com/blueberryserver/tcpserver/msg"
@@ -85,6 +89,7 @@ func ServerStart() {
 	server.AddMsgHandler(msg.Msg_Id_value["Enter_Rm_Req"], contents.GetHandlerReqEnterRm())
 	server.AddMsgHandler(msg.Msg_Id_value["Leave_Rm_Req"], contents.GetHandlerReqLeaveRm())
 	server.AddMsgHandler(msg.Msg_Id_value["Regist_Req"], contents.GetHandlerReqRegist())
+	server.AddMsgHandler(msg.Msg_Id_value["List_Rm_Req"], contents.GetHandlerReqListRm())
 
 	err := server.Listen()
 	if err != nil {
@@ -415,4 +420,22 @@ func update() {
 		time.Sleep(10 * time.Second)
 		contents.UpdateChannel()
 	}
+}
+
+func HashTest() {
+	hasher := md5.New()
+	hasher.Write([]byte("noom"))
+	str := hex.EncodeToString(hasher.Sum(nil))
+	fmt.Println(str)
+
+}
+
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randSeq(n int) {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	fmt.Println(string(b))
 }
