@@ -74,7 +74,7 @@ func InitRoom() {
 	_rooms = make(map[uint32]*Room)
 }
 
-var _sync sync.Mutex // sync obj
+var _roomSync sync.Mutex // sync obj
 var _rooms map[uint32]*Room
 
 // create new room
@@ -157,26 +157,18 @@ func (rm Room) LeaveMember(user *User) {
 func load(id uint32) (*Room, error) {
 
 	log.Println("Load room id:", id)
-	// redis slelct db 2(room)
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-	pipe.Select(2)
-	_, err := pipe.Exec()
-	if err != nil {
-		return &Room{}, err
-	}
 
 	// hget room
 	rID := strconv.Itoa(int(id))
-	rType, err := _redisClient.HGet("blue_server.room.type", rID).Result()
+	rType, err := rmchRedisClient.HGet("blue_server.room.type", rID).Result()
 	if err != nil {
 		return &Room{}, err
 	}
-	rStatus, err := _redisClient.HGet("blue_server.room.status", rID).Result()
+	rStatus, err := rmchRedisClient.HGet("blue_server.room.status", rID).Result()
 	if err != nil {
 		return &Room{}, err
 	}
-	createTime, err := _redisClient.HGet("blue_server.room.create.time", rID).Result()
+	createTime, err := rmchRedisClient.HGet("blue_server.room.create.time", rID).Result()
 	if err != nil {
 		return &Room{}, err
 	}
@@ -197,24 +189,18 @@ func load(id uint32) (*Room, error) {
 
 // save room redis
 func (rm Room) save() error {
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-
-	pipe.Select(2)
-	_, _ = pipe.Exec()
-
 	id := strconv.Itoa(int(rm.rID))
-	result, err := _redisClient.HSet("blue_server.room.type", id, strconv.Itoa(int(rm.rType))).Result()
+	result, err := rmchRedisClient.HSet("blue_server.room.type", id, strconv.Itoa(int(rm.rType))).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.room.status", id, strconv.Itoa(int(rm.rStatus))).Result()
+	result, err = rmchRedisClient.HSet("blue_server.room.status", id, strconv.Itoa(int(rm.rStatus))).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.room.create.time", id, rm.createTime.Format("2006-01-02 15:04:05")).Result()
+	result, err = rmchRedisClient.HSet("blue_server.room.create.time", id, rm.createTime.Format("2006-01-02 15:04:05")).Result()
 	if err != nil {
 		return err
 	}
@@ -226,7 +212,7 @@ func (rm Room) save() error {
 	members = strings.Trim(members, ", ")
 	members += "]"
 
-	result, err = _redisClient.HSet("blue_server.room.member", id, members).Result()
+	result, err = rmchRedisClient.HSet("blue_server.room.member", id, members).Result()
 	if err != nil {
 		return err
 	}
@@ -259,9 +245,9 @@ func (rm Room) ToString() string {
 
 //
 func EnterRm(rmNo uint32, user *User) error {
-	var mu = &_sync
-	mu.Lock()
-	defer mu.Unlock()
+	var mutex = &_roomSync
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	// quick join
 	if rmNo == 0 {
@@ -296,7 +282,7 @@ func EnterRm(rmNo uint32, user *User) error {
 
 //
 func LeaveRm(rmNo uint32, user *User) error {
-	var mu = &_sync
+	var mu = &_roomSync
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -337,21 +323,12 @@ func FindRm(rmNo uint32) (*Room, error) {
 
 // load room from redis
 func LoadRoom() {
-	// redis slelct db 2(room, ch)
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-	pipe.Select(2)
-	_, err := pipe.Exec()
-	if err != nil {
-		log.Println(err)
-		return
-	}
 
 	_rooms = make(map[uint32]*Room)
 
 	var cursor uint64
 	var outputs []string
-	outputs, cursor, err = _redisClient.HScan("blue_server.room.type", cursor, "", 10).Result()
+	outputs, cursor, err := rmchRedisClient.HScan("blue_server.room.type", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
 		return
@@ -375,11 +352,11 @@ func LoadRoom() {
 	}
 	// room count
 	//cursor = 0
-	//outputs, cursor, err = _redisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
+	//outputs, cursor, err = rmchRedisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
 	//log.Println(outputs)
 	// user count
 	cursor = 0
-	outputs, cursor, err = _redisClient.HScan("blue_server.room.status", cursor, "", 10).Result()
+	outputs, cursor, err = rmchRedisClient.HScan("blue_server.room.status", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
 		return
@@ -397,7 +374,7 @@ func LoadRoom() {
 	}
 
 	cursor = 0
-	outputs, cursor, err = _redisClient.HScan("blue_server.room.create.time", cursor, "", 10).Result()
+	outputs, cursor, err = rmchRedisClient.HScan("blue_server.room.create.time", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
 		return
@@ -414,7 +391,7 @@ func LoadRoom() {
 	}
 
 	cursor = 0
-	outputs, cursor, err = _redisClient.HScan("blue_server.room.member", cursor, "", 10).Result()
+	outputs, cursor, err = rmchRedisClient.HScan("blue_server.room.member", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
 		return
@@ -434,7 +411,7 @@ func LoadRoom() {
 //
 func GetRoomList() []*msg.ListRmAns_RoomInfo {
 	rmList := make([]*msg.ListRmAns_RoomInfo, len(_rooms))
-	var mu = &_sync
+	var mu = &_roomSync
 	mu.Lock()
 	defer mu.Unlock()
 	index := 0

@@ -6,8 +6,24 @@ import (
 	"strconv"
 	"time"
 
+	redis "gopkg.in/redis.v4"
+
 	"github.com/blueberryserver/tcpserver/network"
 )
+
+// user db(1)
+var userRedisClient *redis.Client
+
+//
+func SetUserRedisClient(client *redis.Client) {
+	userRedisClient = client
+
+	pipe := userRedisClient.Pipeline()
+	defer pipe.Close()
+
+	pipe.Select(1)
+	_, _ = pipe.Exec()
+}
 
 // user obj
 type User struct {
@@ -78,49 +94,42 @@ func NewUser() *User {
 // loading user info from redis
 func LoadUser(id uint32) (*User, error) {
 
-	// redis slelct db 1(user)
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-
-	pipe.Select(1)
-	_, _ = pipe.Exec()
-
 	// hget
 	userID := strconv.Itoa(int(id))
-	name, err := _redisClient.HGet("blue_server.user.name", userID).Result()
+	name, err := userRedisClient.HGet("blue_server.user.name", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
 
-	hashkey, err := _redisClient.HGet("blue_server.user.hashkey", userID).Result()
+	hashkey, err := userRedisClient.HGet("blue_server.user.hashkey", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	createTime, err := _redisClient.HGet("blue_server.user.create.time", userID).Result()
+	createTime, err := userRedisClient.HGet("blue_server.user.create.time", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	platform, err := _redisClient.HGet("blue_server.user.platform", userID).Result()
+	platform, err := userRedisClient.HGet("blue_server.user.platform", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	loginStatus, err := _redisClient.HGet("blue_server.user.login.status", userID).Result()
+	loginStatus, err := userRedisClient.HGet("blue_server.user.login.status", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	rmNo, err := _redisClient.HGet("blue_server.user.room.no", userID).Result()
+	rmNo, err := userRedisClient.HGet("blue_server.user.room.no", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	loginTime, err := _redisClient.HGet("blue_server.user.login.time", userID).Result()
+	loginTime, err := userRedisClient.HGet("blue_server.user.login.time", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	gem, err := _redisClient.HGet("blue_server.user.vc.gem", userID).Result()
+	gem, err := userRedisClient.HGet("blue_server.user.vc.gem", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
-	gold, err := _redisClient.HGet("blue_server.user.vc.gold", userID).Result()
+	gold, err := userRedisClient.HGet("blue_server.user.vc.gold", userID).Result()
 	if err != nil {
 		return &User{}, err
 	}
@@ -167,7 +176,7 @@ func LoadUser(id uint32) (*User, error) {
 
 // loading user info from redis
 func LoadUserByName(name string) (*User, error) {
-	result, err := _redisClient.HGet("blue_server.user.id", name).Result()
+	result, err := userRedisClient.HGet("blue_server.user.id", name).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -181,65 +190,59 @@ func LoadUserByName(name string) (*User, error) {
 
 // save redis user
 func (u User) Save() error {
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-
-	pipe.Select(1)
-	_, _ = pipe.Exec()
 
 	id := strconv.Itoa(int(u.ID))
-	result, err := _redisClient.HSet("blue_server.user.id", u.Name, id).Result()
+	result, err := userRedisClient.HSet("blue_server.user.id", u.Name, id).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.name", id, u.Name).Result()
+	result, err = userRedisClient.HSet("blue_server.user.name", id, u.Name).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.hashkey", id, u.Key).Result()
+	result, err = userRedisClient.HSet("blue_server.user.hashkey", id, u.Key).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.platform", id, UserPlatformName[u.Platform]).Result()
+	result, err = userRedisClient.HSet("blue_server.user.platform", id, UserPlatformName[u.Platform]).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.login.status", id, UserStatusName[u.Status]).Result()
+	result, err = userRedisClient.HSet("blue_server.user.login.status", id, UserStatusName[u.Status]).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.vc.gem", id, strconv.Itoa(int(u.VcGem))).Result()
+	result, err = userRedisClient.HSet("blue_server.user.vc.gem", id, strconv.Itoa(int(u.VcGem))).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.vc.gold", id, strconv.Itoa(int(u.VcGold))).Result()
+	result, err = userRedisClient.HSet("blue_server.user.vc.gold", id, strconv.Itoa(int(u.VcGold))).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.create.time", id, u.CreateTime.Format("2006-01-02 15:04:05")).Result()
+	result, err = userRedisClient.HSet("blue_server.user.create.time", id, u.CreateTime.Format("2006-01-02 15:04:05")).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = _redisClient.HSet("blue_server.user.login.time", id, u.LoginTime.Format("2006-01-02 15:04:05")).Result()
+	result, err = userRedisClient.HSet("blue_server.user.login.time", id, u.LoginTime.Format("2006-01-02 15:04:05")).Result()
 	if err != nil {
 		return err
 	}
 	if u.Status == _LogOff {
-		result, err = _redisClient.HSet("blue_server.user.logout.time", id, u.LogoutTime.Format("2006-01-02 15:04:05")).Result()
+		result, err = userRedisClient.HSet("blue_server.user.logout.time", id, u.LogoutTime.Format("2006-01-02 15:04:05")).Result()
 		if err != nil {
 			return err
 		}
 	}
-
-	result, err = _redisClient.HSet("blue_server.user.room.no", id, strconv.Itoa(int(u.RmNo))).Result()
+	result, err = userRedisClient.HSet("blue_server.user.room.no", id, strconv.Itoa(int(u.RmNo))).Result()
 	if err != nil {
 		return err
 	}
@@ -260,12 +263,6 @@ func (u User) ToString() string {
 
 // generate id
 func UserGenID() uint32 {
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-
-	pipe.Select(1)
-	_, _ = pipe.Exec()
-
-	genID, _ := _redisClient.Incr("blue_server.manager.user.genid").Result()
+	genID, _ := userRedisClient.Incr("blue_server.manager.user.genid").Result()
 	return uint32(genID)
 }

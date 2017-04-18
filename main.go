@@ -37,14 +37,24 @@ func main() {
 	mutiWriter := io.MultiWriter(fileLog, os.Stdout)
 	log.SetOutput(mutiWriter)
 
-	client := redis.NewClient(&redis.Options{
+	userClient := redis.NewClient(&redis.Options{
 		Addr:     "127.0.0.1:6379",
 		Password: "", // no password set
-		DB:       0,  // use default DB
+		DB:       1,  // use default DB
 	})
+	defer userClient.Close()
+
+	rmchClient := redis.NewClient(&redis.Options{
+		Addr:     "127.0.0.1:6379",
+		Password: "", // no password set
+		DB:       2,  // use default DB
+	})
+	defer rmchClient.Close()
 
 	// set redis client
-	contents.SetRedisClient(client)
+	contents.SetUserRedisClient(userClient)
+	contents.SetRmChRedisClient(rmchClient)
+
 	// generate channel list
 	//contents.NewChannel()
 	contents.LoadChannel()

@@ -10,17 +10,9 @@ import (
 	"github.com/blueberryserver/tcpserver/util"
 	"github.com/funny/pprof"
 	"github.com/golang/protobuf/proto"
-	redis "gopkg.in/redis.v4"
 )
 
-var _redisClient *redis.Client
-
 var _recorder *pprof.TimeRecorder
-
-// set global redis client
-func SetRedisClient(client *redis.Client) {
-	_redisClient = client
-}
 
 // set golbal time recorder
 func SetTimeRecorder(recorder *pprof.TimeRecorder) {
@@ -122,13 +114,7 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	log.Printf("Server ReqRegist msg: %d %s\r\n", m.msgID, req.String())
 
 	// redis query by user id
-
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-	pipe.Select(1)
-	_, _ = pipe.Exec()
-
-	uID, err := _redisClient.HGet("blue_server.user.id", *req.Name).Result()
+	uID, err := userRedisClient.HGet("blue_server.user.id", *req.Name).Result()
 	if uID != "" {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_EXIST_NAME_FAIL)
@@ -155,7 +141,6 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	user.ChNo = 0
 	user.RmNo = 0
 	err = user.Save()
-
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
 	ans := &msg.RegistAns{
@@ -197,12 +182,7 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	log.Printf("Server ReqLogin msg: %d %s\r\n", m.msgID, req.String())
 
 	// redis query by user id
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-	pipe.Select(1)
-	_, _ = pipe.Exec()
-
-	uID, err := _redisClient.HGet("blue_server.user.id", *req.Id).Result()
+	uID, err := userRedisClient.HGet("blue_server.user.id", *req.Id).Result()
 	if err != nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)

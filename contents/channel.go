@@ -2,20 +2,36 @@ package contents
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	redis "gopkg.in/redis.v4"
 
 	"strconv"
 
 	"github.com/blueberryserver/tcpserver/network"
 )
 
+// room,  channel db(2)
+var rmchRedisClient *redis.Client
+
+//
+func SetRmChRedisClient(client *redis.Client) {
+	rmchRedisClient = client
+
+	pipe := rmchRedisClient.Pipeline()
+	defer pipe.Close()
+	pipe.Select(2)
+	_, _ = pipe.Exec()
+}
+
+var _chSync sync.Mutex // sync obj
 // channel
 type Channel struct {
 	no      uint32 // channel number
 	chType  ChType
-	sync    sync.Mutex       // sync obj
 	members map[uint32]*User // channel user
 	//rooms   map[uint32]*Room // channel room
 }
@@ -65,21 +81,12 @@ func NewChannel() {
 
 // load channel from redis
 func LoadChannel() {
-	// redis slelct db 2(room, ch)
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-	pipe.Select(2)
-	_, err := pipe.Exec()
-	if err != nil {
-		log.Println(err)
-		return
-	}
 
 	_channels = make(map[uint32]*Channel)
 
 	var cursor uint64
 	var outputs []string
-	outputs, cursor, err = _redisClient.HScan("blue_server.ch.type", cursor, "", 10).Result()
+	outputs, cursor, err := rmchRedisClient.HScan("blue_server.ch.type", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
 		return
@@ -103,59 +110,55 @@ func LoadChannel() {
 	}
 	// user count
 	cursor = 0
-	outputs, cursor, err = _redisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
+	outputs, cursor, err = rmchRedisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
 	//log.Println(outputs)
 }
 
 // save channel to redis
 func saveChannel() {
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
-	pipe.Select(2)
-	_, err := pipe.Exec()
-	if err != nil {
-		log.Println(err)
-		return
+	{
+		var chMutex = &_chSync
+		chMutex.Lock()
+		defer chMutex.Unlock()
+		for _, ch := range _channels {
+
+			_, err := rmchRedisClient.HSet("blue_server.ch.type", strconv.Itoa(int(ch.no)), ChTypeName[ch.chType]).Result()
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			// roomCount := len(ch.rooms)
+			// _, err = rmchRedisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
+			// if err != nil {
+			// 	log.Println(err)
+			// 	continue
+			// }
+			userCount := len(ch.members)
+			_, err = rmchRedisClient.HSet("blue_server.ch.user.count", strconv.Itoa(int(ch.no)), strconv.Itoa(userCount)).Result()
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			// save user info
+			// for _, ur := range ch.members {
+			// 	ur.Save()
+			// }
+
+			// save room info
+			// for _, rm := range ch.rooms {
+			// 	rm.Save()
+			// }
+		}
 	}
 
-	for _, ch := range _channels {
-		var mu = &ch.sync
-		mu.Lock()
-		defer mu.Unlock()
-		_, err := _redisClient.HSet("blue_server.ch.type", strconv.Itoa(int(ch.no)), ChTypeName[ch.chType]).Result()
-		if err != nil {
-			log.Println(err)
-			continue
+	{
+		var mutex = &_roomSync
+		mutex.Lock()
+		defer mutex.Unlock()
+		for _, rm := range _rooms {
+			rm.save()
 		}
-		// roomCount := len(ch.rooms)
-		// _, err = _redisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
-		// if err != nil {
-		// 	log.Println(err)
-		// 	continue
-		// }
-		userCount := len(ch.members)
-		_, err = _redisClient.HSet("blue_server.ch.user.count", strconv.Itoa(int(ch.no)), strconv.Itoa(userCount)).Result()
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		// save user info
-		// for _, ur := range ch.members {
-		// 	ur.Save()
-		// }
-
-		// save room info
-		// for _, rm := range ch.rooms {
-		// 	rm.Save()
-		// }
-	}
-
-	var mu = &_sync
-	mu.Lock()
-	defer mu.Unlock()
-	for _, rm := range _rooms {
-		rm.save()
 	}
 }
 
@@ -165,6 +168,9 @@ func EnterCh(chNo uint32, user *User) bool {
 		return false
 	}
 
+	var chMutex = &_chSync
+	chMutex.Lock()
+	defer chMutex.Unlock()
 	log.Println("Enter channel no:", chNo, "user:", user.Name)
 	_channels[chNo].members[user.ID] = user
 
@@ -176,13 +182,12 @@ func EnterCh(chNo uint32, user *User) bool {
 func LeaveCh(user *User) {
 	log.Println("Leave channel no:", user.ChNo, "user:", user.Name, "member count:", len(_channels[0].members))
 
+	var chMutex = &_chSync
+	chMutex.Lock()
+	defer chMutex.Unlock()
 	//leave defualt channel
 	delete(_channels[0].members, user.ID)
 	log.Println("Remind channel no: 0 member count:", len(_channels[0].members))
-
-	var mu = &_channels[user.ChNo].sync
-	mu.Lock()
-	defer mu.Unlock()
 
 	// leave room
 	//if user.RmNo != 0 && user.ChNo != 0 {
@@ -197,7 +202,9 @@ func LeaveCh(user *User) {
 // move channel
 func MoveCh(chNo uint32, user *User) {
 	log.Println("Move channel no:", chNo, "user:", user.Name)
-
+	var chMutex = &_chSync
+	chMutex.Lock()
+	defer chMutex.Unlock()
 	// leave current channel
 	delete(_channels[user.ChNo].members, user.ID)
 
@@ -207,9 +214,9 @@ func MoveCh(chNo uint32, user *User) {
 
 // find user
 func FindUser(session *network.Session) (*User, error) {
-	var mu = &_channels[0].sync
-	mu.Lock()
-	defer mu.Unlock()
+	var chMutex = &_chSync
+	chMutex.Lock()
+	defer chMutex.Unlock()
 	for _, v := range _channels[0].members {
 		if v.Session == session {
 			return v, nil
@@ -220,9 +227,9 @@ func FindUser(session *network.Session) (*User, error) {
 
 // find user
 func FindUserByID(id uint32) (*User, error) {
-	var mu = &_channels[0].sync
-	mu.Lock()
-	defer mu.Unlock()
+	var chMutex = &_chSync
+	chMutex.Lock()
+	defer chMutex.Unlock()
 	for _, v := range _channels[0].members {
 		if v.ID == id {
 			return v, nil
@@ -241,26 +248,31 @@ func FindCh(chNo uint32) (*Channel, error) {
 
 //
 func MonitorChannel() string {
-	var str string
-	for _, ch := range _channels {
-		str += "ch: " + strconv.Itoa(int(ch.no)) + "\r\n"
-		var mu = &ch.sync
-		mu.Lock()
-		defer mu.Unlock()
 
-		for _, ur := range ch.members {
-			str += "	user: " + ur.Name + "\r\n"
+	var str string
+	{
+		var chMutex = &_chSync
+		chMutex.Lock()
+		defer chMutex.Unlock()
+		for _, ch := range _channels {
+			str += "ch: " + strconv.Itoa(int(ch.no)) + "\r\n"
+
+			for _, ur := range ch.members {
+				str += "	user: " + ur.Name + "\r\n"
+			}
 		}
 	}
 
-	var mu = &_sync
-	mu.Lock()
-	defer mu.Unlock()
-	for _, rm := range _rooms {
-		str += "rm: " + strconv.Itoa(int(rm.rID)) + "\r\n"
+	{
+		var mutex = &_roomSync
+		mutex.Lock()
+		defer mutex.Unlock()
+		for _, rm := range _rooms {
+			str += "rm: " + strconv.Itoa(int(rm.rID)) + "\r\n"
 
-		for _, ur := range rm.members {
-			str += "	user: " + ur.Name + "\r\n"
+			for _, ur := range rm.members {
+				str += "	user: " + ur.Name + "\r\n"
+			}
 		}
 	}
 	return str
@@ -274,31 +286,45 @@ func UpdateChannel() {
 
 // generate id
 func RoomGenID() uint32 {
-	pipe := _redisClient.Pipeline()
-	defer pipe.Close()
 
-	pipe.Select(2)
-	_, _ = pipe.Exec()
-
-	genID, _ := _redisClient.Incr("blue_server.manager.room.genid").Result()
+	genID, _ := rmchRedisClient.Incr("blue_server.manager.room.genid").Result()
 	return uint32(genID)
 }
 
 func checkLogoutUser() {
-	log.Println("Check Logout User")
-	var mu = &_channels[0].sync
-	mu.Lock()
-	defer mu.Unlock()
-	for _, v := range _channels[0].members {
-		if v.Status == _LogOff && time.Now().After(v.LogoutTime.Add(30*time.Second)) {
-			// leave ch
-			LeaveCh(v)
+	fmt.Println("Check Logout User")
+	{
+		var rmMutex = &_roomSync
+		rmMutex.Lock()
+		defer rmMutex.Unlock()
+		for _, rm := range _rooms {
+			for _, ur := range rm.members {
+				if ur.Status == _LogOff && time.Now().After(ur.LogoutTime.Add(30*time.Second)) {
+					rm.LeaveMember(ur)
+				}
+			}
+		}
 
-			// leave rm
-			LeaveRm(v.RmNo, v)
+	}
 
-			// save data
-			v.Save()
+	{
+		var chMutex = &_chSync
+		chMutex.Lock()
+		defer chMutex.Unlock()
+		for _, v := range _channels[0].members {
+			if v.Status == _LogOff && time.Now().After(v.LogoutTime.Add(30*time.Second)) {
+				// leave ch
+				delete(_channels[0].members, v.ID)
+				log.Println("Remind channel no: 0 member count:", len(_channels[0].members))
+
+				// leave current channel
+				if v.ChNo != 0 {
+					delete(_channels[v.ChNo].members, v.ID)
+				}
+
+				// save data
+				v.Save()
+			}
 		}
 	}
 }
