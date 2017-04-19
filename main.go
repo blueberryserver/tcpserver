@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"runtime"
 	_ "strconv"
@@ -24,7 +25,6 @@ func main() {
 	//summary := pprof.GCSummary()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	//runtime.LockOSThread()
 
 	logfile := "log_" + time.Now().Format("2006_01_02_15") + ".txt"
 	fileLog, err := os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
@@ -55,24 +55,26 @@ func main() {
 	contents.SetRmChRedisClient(rmchClient)
 
 	// generate channel list
-	//contents.NewChannel()
 	contents.LoadChannel()
 	contents.LoadRoom()
 
 	// monitoring
-	monitorID := make(chan int)
-	go monitor(monitorID)
-	monitorID <- 1
+	// monitorID := make(chan int)
+	// go monitor(monitorID)
+	// monitorID <- 1
 
 	updateID := make(chan int)
 	go update(updateID)
 	updateID <- 2
 
-	// server start
-	ServerStart()
-
 	// wait 1 second
 	time.Sleep(1 * time.Second)
+
+	// http server
+	httpServer()
+
+	// server start
+	ServerStart()
 }
 
 // server start
@@ -101,16 +103,6 @@ func ServerStart() {
 
 }
 
-func monitor(c chan int) {
-	id := <-c
-	for {
-		time.Sleep(10 * time.Second)
-		log.Println(id, "monitoring ..........................")
-		contents.MonitorChannel(id)
-		log.Println(id, "......................................")
-	}
-}
-
 func update(c chan int) {
 	id := <-c
 	for {
@@ -118,4 +110,28 @@ func update(c chan int) {
 		contents.UpdateChannel(id)
 		contents.UpdateManager(id)
 	}
+}
+
+func httpServer() {
+	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+		//res.Write([]byte("Hello, world!")) // 웹 브라우저에 응답
+		str := "<p>.......... ..........................</p>"
+		str += contents.MonitorChannel()
+		str += "<p>.....................................</p>"
+		html := `
+		<html>
+		<head>
+			<title>Montor</title>
+			<meta http-equiv="refresh" content="10; url=/" />
+		</head>
+		<body>
+			<span class="montor">` + str + `</span>
+		</body>
+		</html>
+		`
+		res.Header().Set("Content-Type", "text/html") // HTML 헤더 설정
+		res.Write([]byte(html))
+	}) // / 경로에 접속했을 때 실행할 함수 설정
+
+	go http.ListenAndServe(":80", nil) // 80번 포트에서 웹 서버 실행
 }

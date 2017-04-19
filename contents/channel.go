@@ -2,6 +2,7 @@ package contents
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -227,32 +228,39 @@ func FindCh(chNo uint32) (*Channel, error) {
 }
 
 //
-func MonitorChannel(id int) {
+func MonitorChannel() string {
+	var str string
 	{
 		var chMutex = &_chSync
 		chMutex.Lock()
 		defer chMutex.Unlock()
-		for _, ch := range _channels {
-			log.Println(id, "ch: "+strconv.Itoa(int(ch.no)))
 
-			for _, ur := range ch.members {
-				log.Println(id, "	user: "+ur.Name)
+		for i := 0; i < len(_channels); i++ {
+			str += fmt.Sprintln("<p>channelNo: " + strconv.Itoa(int(_channels[uint32(i)].no)) + "</p>")
+
+			for _, ur := range _channels[uint32(i)].members {
+				str += "<p><blockquote>"
+				str += fmt.Sprintln("user: " + ur.Name)
+				str += "</blockquote>"
 			}
 		}
 	}
-
+	str += "<p>.....................................</p>"
 	{
 		var mutex = &_roomSync
 		mutex.Lock()
 		defer mutex.Unlock()
-		for _, rm := range _rooms {
-			log.Println(id, "rm: "+strconv.Itoa(int(rm.rID)))
+		for i := 1; i < len(_rooms)+1; i++ {
+			str += fmt.Sprintln("<p>roomNo: " + strconv.Itoa(int(_rooms[uint32(i)].rID)) + "</p>")
 
-			for _, ur := range rm.members {
-				log.Println(id, "	user: "+ur.Name)
+			for _, ur := range _rooms[uint32(i)].members {
+				str += "<p><blockquote>"
+				str += fmt.Sprintln("user: " + ur.Name)
+				str += "</blockquote>"
 			}
 		}
 	}
+	return str
 }
 
 // update channel info

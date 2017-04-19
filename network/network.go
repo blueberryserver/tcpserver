@@ -2,7 +2,6 @@ package network
 
 import (
 	"encoding/binary"
-	"fmt"
 	"log"
 	"net"
 	"syscall"
@@ -116,7 +115,7 @@ func (server *NetServer) Stop() {
 
 func (server *NetServer) handlerConnect(session *Session) {
 
-	fmt.Printf("accept session sid:%d\r\n", session._id)
+	log.Printf("accept session sid:%d\r\n", session._id)
 	if server._recvHandler != nil {
 		go server._recvHandler.(func(*NetServer, *Session))(server, session)
 	} else {
@@ -144,7 +143,7 @@ func (server *NetServer) handlerRecv(session *Session) {
 				server.RemoveSession(session)
 				return
 			}
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
@@ -160,7 +159,7 @@ func (server *NetServer) packetParsing(session *Session, data []byte, bytes int)
 	body := data[4:]
 
 	if server._handler[int32(msgID)] == nil {
-		fmt.Println("server not find handler msgid:", msgID)
+		log.Println("server not find handler msgid:", msgID)
 		return
 	}
 
@@ -215,7 +214,7 @@ func (client *NetClient) Connected() bool {
 
 func (client *NetClient) handlerConnect(session *Session) {
 	// 연결 처리
-	fmt.Println("connection complate")
+	log.Println("connection complate")
 	if client._recvHandler != nil {
 		go client._recvHandler.(func(*NetClient, *Session))(client, session)
 	} else {
@@ -247,7 +246,7 @@ func (client *NetClient) packetParsing(session *Session, data []byte, bytes int)
 	body := data[4:]
 
 	if client._handler[int32(msgID)] == nil {
-		fmt.Println("client not find handler msgid:", msgID)
+		log.Println("client not find handler msgid:", msgID)
 		return
 	}
 
