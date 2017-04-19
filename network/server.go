@@ -2,52 +2,48 @@ package network
 
 import (
 	"errors"
-	"sync"
 )
 
-type _Server struct {
+//
+type BlueServer struct {
 	// server net session
-	_server *NetServer
-
+	server *NetServer
 	// sync obj
-	_lockSession sync.Mutex
+	//_lockSession sync.Mutex
 }
 
 //
-var _netServet *_Server
+var _netServet *BlueServer
 
 //
-func SetGlobalNetServer(server *_Server) {
+func SetGlobalNetServer(server *BlueServer) {
 	_netServet = server
 }
 
 //
-func NewServer(net string, addr string, closeHandler interface{}) *_Server {
-	return &_Server{
-		_server: NewNetServer(net, addr, nil, nil, closeHandler),
+func NewServer(net string, addr string, closeHandler interface{}) *BlueServer {
+	server := NewNetServer(net, addr, nil, nil, closeHandler)
+	return &BlueServer{
+		server: server,
 	}
 }
 
 //
-func (server *_Server) Listen() error {
-	c := make(chan bool)
-	go server._server.Listen(c)
-
-	_ = <-c
-	return nil
+func (s *BlueServer) Listen(c *chan bool) {
+	go s.server.Listen(c)
 }
 
 //
-func (server *_Server) Stop() {
-	server.Stop()
-}
-
-//
-func (server *_Server) AddMsgHandler(msgID int32, handler _MsgHandler) error {
-	if server._server._handler[msgID] != nil {
+func (s *BlueServer) AddMsgHandler(msgID int32, handler _MsgHandler) error {
+	if s.server._handler[msgID] != nil {
 		return errors.New("already handler binding")
 	}
 
-	server._server._handler[msgID] = handler
+	s.server._handler[msgID] = handler
 	return nil
+}
+
+//
+func StopServer() {
+	_netServet.server.Stop()
 }

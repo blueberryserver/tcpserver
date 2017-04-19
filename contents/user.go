@@ -8,6 +8,8 @@ import (
 
 	redis "gopkg.in/redis.v4"
 
+	"log"
+
 	"github.com/blueberryserver/tcpserver/network"
 )
 
@@ -265,4 +267,14 @@ func (u User) ToString() string {
 func UserGenID() uint32 {
 	genID, _ := userRedisClient.Incr("blue_server.manager.user.genid").Result()
 	return uint32(genID)
+}
+
+//
+func UpdateManager(id int) {
+	serverStatus, _ := userRedisClient.Get("blue_server.manager.server.running").Result()
+	log.Println(id, "server manager status:", serverStatus)
+	if serverStatus == "FALSE" {
+		network.StopServer()
+		_, _ = userRedisClient.Set("blue_server.manager.server.running", "TRUE", 0).Result()
+	}
 }

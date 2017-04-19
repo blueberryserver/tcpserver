@@ -323,7 +323,7 @@ func FindRm(rmNo uint32) (*Room, error) {
 
 // load room from redis
 func LoadRoom() {
-
+	log.Println("loading room info")
 	_rooms = make(map[uint32]*Room)
 
 	var cursor uint64

@@ -3,6 +3,7 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
 	"syscall"
 )
@@ -41,10 +42,13 @@ type NetServer struct {
 	_recvHandler    interface{}
 	_closeHandler   interface{}
 	_running        bool
+	_listener       net.Listener
+	_quit           chan bool
 }
 
 //
 func NewNetServer(net string, addr string, connHandler interface{}, recvHandler interface{}, closeHandler interface{}) *NetServer {
+
 	return &NetServer{
 		_net:            net,
 		_addr:           addr,
@@ -55,6 +59,8 @@ func NewNetServer(net string, addr string, connHandler interface{}, recvHandler 
 		_recvHandler:    recvHandler,
 		_closeHandler:   closeHandler,
 		_running:        true,
+		_listener:       nil,
+		_quit:           make(chan bool),
 	}
 }
 
@@ -64,15 +70,25 @@ func (server *NetServer) RemoveSession(session *Session) {
 }
 
 //
-func (server *NetServer) Listen(c chan bool) error {
+func (server *NetServer) Listen(c *chan bool) error {
 	ln, err := net.Listen(server._net, server._addr)
 	if err != nil {
 		return err
 	}
+	defer ln.Close()
+	server._listener = ln
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
+			log.Println(err)
+
+			select {
+			case <-server._quit:
+				*c <- true
+				return nil
+			default:
+			}
 			continue
 		}
 
@@ -89,19 +105,13 @@ func (server *NetServer) Listen(c chan bool) error {
 		} else {
 			go server.handlerConnect(session)
 		}
-
-		if server._running == false {
-			break
-		}
 	}
-
-	c <- true
-	return nil
 }
 
 //
 func (server *NetServer) Stop() {
-	server._running = false
+	close(server._quit)
+	server._listener.Close()
 }
 
 func (server *NetServer) handlerConnect(session *Session) {

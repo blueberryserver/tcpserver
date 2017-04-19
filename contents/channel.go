@@ -2,7 +2,6 @@ package contents
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -33,7 +32,6 @@ type Channel struct {
 	no      uint32 // channel number
 	chType  ChType
 	members map[uint32]*User // channel user
-	//rooms   map[uint32]*Room // channel room
 }
 
 // channel type
@@ -74,14 +72,13 @@ func NewChannel() {
 			no:      uint32(i),
 			chType:  _ChDefault,
 			members: make(map[uint32]*User),
-			//rooms:   make(map[uint32]*Room),
 		}
 	}
 }
 
 // load channel from redis
 func LoadChannel() {
-
+	log.Println("loading channel info")
 	_channels = make(map[uint32]*Channel)
 
 	var cursor uint64
@@ -104,19 +101,18 @@ func LoadChannel() {
 			no:      uint32(iNo),
 			chType:  iChType,
 			members: make(map[uint32]*User),
-			//rooms:   make(map[uint32]*Room),
 		}
-		//log.Println(_channels[uint32(iNo)])
 	}
 	// user count
-	cursor = 0
-	outputs, cursor, err = rmchRedisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
+	//cursor = 0
+	//outputs, cursor, err = rmchRedisClient.HScan("blue_server.ch.user.count", cursor, "", 10).Result()
 	//log.Println(outputs)
 }
 
 // save channel to redis
-func saveChannel() {
+func saveChannel(id int) {
 	{
+		// save channel
 		var chMutex = &_chSync
 		chMutex.Lock()
 		defer chMutex.Unlock()
@@ -127,32 +123,18 @@ func saveChannel() {
 				log.Println(err)
 				continue
 			}
-			// roomCount := len(ch.rooms)
-			// _, err = rmchRedisClient.HSet("blue_server.ch.room.count", strconv.Itoa(int(ch.no)), strconv.Itoa(roomCount)).Result()
-			// if err != nil {
-			// 	log.Println(err)
-			// 	continue
-			// }
+
 			userCount := len(ch.members)
 			_, err = rmchRedisClient.HSet("blue_server.ch.user.count", strconv.Itoa(int(ch.no)), strconv.Itoa(userCount)).Result()
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-
-			// save user info
-			// for _, ur := range ch.members {
-			// 	ur.Save()
-			// }
-
-			// save room info
-			// for _, rm := range ch.rooms {
-			// 	rm.Save()
-			// }
 		}
 	}
 
 	{
+		// save room
 		var mutex = &_roomSync
 		mutex.Lock()
 		defer mutex.Unlock()
@@ -174,7 +156,9 @@ func EnterCh(chNo uint32, user *User) bool {
 	log.Println("Enter channel no:", chNo, "user:", user.Name)
 	_channels[chNo].members[user.ID] = user
 
-	user.ChNo = chNo
+	if chNo != 0 {
+		user.ChNo = chNo
+	}
 	return true
 }
 
@@ -189,10 +173,6 @@ func LeaveCh(user *User) {
 	delete(_channels[0].members, user.ID)
 	log.Println("Remind channel no: 0 member count:", len(_channels[0].members))
 
-	// leave room
-	//if user.RmNo != 0 && user.ChNo != 0 {
-	//	_channels[user.ChNo].rooms[user.RmNo].LeaveMember(user)
-	//}
 	// leave current channel
 	if user.ChNo != 0 {
 		delete(_channels[user.ChNo].members, user.ID)
@@ -247,18 +227,16 @@ func FindCh(chNo uint32) (*Channel, error) {
 }
 
 //
-func MonitorChannel() string {
-
-	var str string
+func MonitorChannel(id int) {
 	{
 		var chMutex = &_chSync
 		chMutex.Lock()
 		defer chMutex.Unlock()
 		for _, ch := range _channels {
-			str += "ch: " + strconv.Itoa(int(ch.no)) + "\r\n"
+			log.Println(id, "ch: "+strconv.Itoa(int(ch.no)))
 
 			for _, ur := range ch.members {
-				str += "	user: " + ur.Name + "\r\n"
+				log.Println(id, "	user: "+ur.Name)
 			}
 		}
 	}
@@ -268,20 +246,20 @@ func MonitorChannel() string {
 		mutex.Lock()
 		defer mutex.Unlock()
 		for _, rm := range _rooms {
-			str += "rm: " + strconv.Itoa(int(rm.rID)) + "\r\n"
+			log.Println(id, "rm: "+strconv.Itoa(int(rm.rID)))
 
 			for _, ur := range rm.members {
-				str += "	user: " + ur.Name + "\r\n"
+				log.Println(id, "	user: "+ur.Name)
 			}
 		}
 	}
-	return str
 }
 
 // update channel info
-func UpdateChannel() {
-	checkLogoutUser()
-	saveChannel()
+func UpdateChannel(id int) {
+	log.Println(id, "update channel")
+	checkLogoutUser(id)
+	saveChannel(id)
 }
 
 // generate id
@@ -291,8 +269,8 @@ func RoomGenID() uint32 {
 	return uint32(genID)
 }
 
-func checkLogoutUser() {
-	fmt.Println("Check Logout User")
+func checkLogoutUser(id int) {
+	log.Println(id, "check logoff user")
 	{
 		var rmMutex = &_roomSync
 		rmMutex.Lock()
@@ -304,7 +282,6 @@ func checkLogoutUser() {
 				}
 			}
 		}
-
 	}
 
 	{
@@ -315,7 +292,7 @@ func checkLogoutUser() {
 			if v.Status == _LogOff && time.Now().After(v.LogoutTime.Add(30*time.Second)) {
 				// leave ch
 				delete(_channels[0].members, v.ID)
-				log.Println("Remind channel no: 0 member count:", len(_channels[0].members))
+				log.Println(id, "Remind channel no: 0 member count:", len(_channels[0].members))
 
 				// leave current channel
 				if v.ChNo != 0 {
