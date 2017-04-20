@@ -42,7 +42,8 @@ type User struct {
 	LogoutTime time.Time
 	CreateTime time.Time
 
-	Session *network.Session
+	Session       *network.Session
+	KeepaliveTime time.Time
 }
 
 // user login status

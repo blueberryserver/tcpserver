@@ -71,7 +71,7 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	// http server
-	httpServer()
+	go httpServer()
 
 	// server start
 	ServerStart()
@@ -129,9 +129,10 @@ func httpServer() {
 		</body>
 		</html>
 		`
-		res.Header().Set("Content-Type", "text/html") // HTML 헤더 설정
+		res.Header().Set("Content-Type", "text/html")
 		res.Write([]byte(html))
-	}) // / 경로에 접속했을 때 실행할 함수 설정
+	})
 
-	go http.ListenAndServe(":80", nil) // 80번 포트에서 웹 서버 실행
+	log.Println("server httpstart")
+	http.ListenAndServe(":8081", nil)
 }

@@ -73,6 +73,20 @@ func (m ReqPing) Execute(session *network.Session, data []byte, length uint16) b
 
 	log.Printf("Server ReqPing msg: %d %s\r\n", m.msgID, req.String())
 
+	user, err := FindUser(session)
+	if err != nil {
+		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.PongAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Pong_Ans"], abuff, uint16(len(abuff)))
+		return false
+	}
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
+
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
 	ans := &msg.PongAns{
@@ -140,6 +154,9 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	user.ChNo = 0
 	user.RmNo = 0
 	err = user.Save()
+
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
 	ans := &msg.RegistAns{
@@ -217,6 +234,8 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	// update login time
 	user.Status = UserStatusValue["LOGON"]
 	user.LoginTime = time.Now()
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
 
 	// save user info
 	user.Save()
@@ -280,6 +299,9 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 		session.SendPacket(msg.Msg_Id_value["Relay_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
+
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
 
 	rm, err := FindRm(user.RmNo)
 	if err != nil {
@@ -350,6 +372,9 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 		return false
 	}
 
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
+
 	// channel enter
 	EnterCh(*req.ChNo, user)
 
@@ -405,6 +430,9 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 		session.SendPacket(msg.Msg_Id_value["Enter_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
+
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
 
 	err = EnterRm(*req.RmNo, user)
 	if err != nil {
@@ -470,6 +498,9 @@ func (m ReqLeaveRm) Execute(session *network.Session, data []byte, length uint16
 		return false
 	}
 
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
+
 	err = LeaveRm(*req.RmNo, user)
 	if err != nil {
 		log.Println(err)
@@ -518,6 +549,22 @@ func (m ReqListRm) Execute(session *network.Session, data []byte, length uint16)
 		session.SendPacket(msg.Msg_Id_value["List_Rm_Ans"], abuff, uint16(len(abuff)))
 		return false
 	}
+
+	// find user
+	user, err := FindUser(session)
+	if err != nil {
+		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.ListRmAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["List_Rm_Ans"], abuff, uint16(len(abuff)))
+		return false
+	}
+
+	// update keepalivetime
+	user.KeepaliveTime = time.Now()
 
 	rmList := GetRoomList()
 	log.Println(rmList)

@@ -285,7 +285,10 @@ func checkLogoutUser(id int) {
 		defer rmMutex.Unlock()
 		for _, rm := range _rooms {
 			for _, ur := range rm.members {
-				if ur.Status == _LogOff && time.Now().After(ur.LogoutTime.Add(30*time.Second)) {
+
+				// logout time over
+				if (ur.Status == _LogOff && time.Now().After(ur.LogoutTime.Add(30*time.Second))) ||
+					(time.Now().After(ur.KeepaliveTime.Add(300 * time.Second))) {
 					rm.LeaveMember(ur)
 				}
 			}
@@ -297,7 +300,8 @@ func checkLogoutUser(id int) {
 		chMutex.Lock()
 		defer chMutex.Unlock()
 		for _, v := range _channels[0].members {
-			if v.Status == _LogOff && time.Now().After(v.LogoutTime.Add(30*time.Second)) {
+			if (v.Status == _LogOff && time.Now().After(v.LogoutTime.Add(30*time.Second))) ||
+				(time.Now().After(v.KeepaliveTime.Add(300 * time.Second))) {
 				// leave ch
 				delete(_channels[0].members, v.ID)
 				log.Println(id, "Remind channel no: 0 member count:", len(_channels[0].members))
@@ -309,6 +313,9 @@ func checkLogoutUser(id int) {
 
 				// save data
 				v.Save()
+
+				// sesion init
+				v.Session = nil
 			}
 		}
 	}
