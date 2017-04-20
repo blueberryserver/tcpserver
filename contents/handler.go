@@ -30,14 +30,15 @@ func CloseHandler(session *network.Session) {
 		return
 	}
 	log.Println("client disconnect ", user.Name)
+
 	// leave channel
-	//LeaveCh(user)
+	LeaveCh(user)
 
 	// leave room
-	//rm, err := FindRm(user.RmNo)
-	//if err == nil {
-	//	rm.LeaveMember(user)
-	//}
+	rm, err := FindRm(user.RmNo)
+	if err == nil {
+		rm.LeaveMember(user)
+	}
 
 	// logout
 	user.Status = UserStatusValue["LOGOFF"]
