@@ -269,7 +269,11 @@ func EnterRm(rmNo uint32, user *User) error {
 	if _rooms[rmNo] == nil {
 		rm, err := load(rmNo)
 		if err != nil {
-			return err
+			//return err
+
+			// create room
+			rm = NewRoom()
+			rmNo = rm.rID
 		}
 		_rooms[rmNo] = rm
 		rm.EnterMember(user)
