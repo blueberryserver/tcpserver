@@ -1,8 +1,8 @@
 package contents
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"strconv"
 	"sync"
@@ -14,14 +14,18 @@ import (
 	"strings"
 )
 
+type RMData struct {
+	RmNo       uint32     `json:"rmno"`
+	RmType     RoomType   `json:"rmtype"`
+	RmStatus   RoomStatus `json:"rmstatus"`
+	CreateTime time.Time  `json:"createtime"`
+}
+
 // room obj
 type Room struct {
-	rID     uint32     // room id
-	rType   RoomType   // room type ( normal, dual ... )
-	rStatus RoomStatus // room status ( none, ready, ... )
+	data RMData
 	// etc
-	members    map[uint32]*User
-	createTime time.Time
+	members map[uint32]*User
 }
 
 // room type
@@ -35,13 +39,13 @@ const (
 
 // room type
 var RoomTypeName = map[RoomType]string{
-	1: "NORMAL",
+	1: "Normal",
 	2: "Dual",
 }
 
 // room type
 var RoomTypeValue = map[string]RoomType{
-	"NORMAL": 1,
+	"Normal": 1,
 	"Dual":   2,
 }
 
@@ -81,18 +85,14 @@ var _rooms map[uint32]*Room
 func NewRoom() *Room {
 	genID := RoomGenID()
 	return &Room{
-		rID:        genID,
-		rType:      _RoomNormal,
-		rStatus:    _RmNone,
-		members:    make(map[uint32]*User),
-		createTime: time.Now(),
+		data: RMData{
+			RmNo:       genID,
+			RmType:     _RoomNormal,
+			RmStatus:   _RmNone,
+			CreateTime: time.Now(),
+		},
+		members: make(map[uint32]*User),
 	}
-}
-
-// set room info
-func (rm Room) SetRoom(rid uint32, rtype RoomType) {
-	rm.rID = rid
-	rm.rType = rtype
 }
 
 // enter room
@@ -103,7 +103,7 @@ func (rm Room) EnterMember(user *User) {
 		not.Names = make([]string, len(rm.members))
 		i := 0
 		for _, v := range rm.members {
-			not.Names[i] = v.Name
+			not.Names[i] = v.Data.Name
 			i++
 		}
 
@@ -115,7 +115,7 @@ func (rm Room) EnterMember(user *User) {
 	if len(rm.members) > 0 {
 		not := &msg.EnterRmNot{}
 		not.Names = make([]string, 1)
-		not.Names[0] = user.Name
+		not.Names[0] = user.Data.Name
 		nbuff, _ := proto.Marshal(not)
 
 		for _, v := range rm.members {
@@ -124,22 +124,22 @@ func (rm Room) EnterMember(user *User) {
 	}
 
 	// add member
-	rm.members[user.ID] = user
-	user.RmNo = rm.rID
+	rm.members[user.Data.ID] = user
+	user.Data.RmNo = rm.data.RmNo
 
-	log.Println("Enter Room no:", rm.rID, "member count:", len(rm.members))
+	log.Println("Enter Room no:", rm.data.RmNo, "member count:", len(rm.members))
 }
 
 //leave room
 func (rm Room) LeaveMember(user *User) {
-	delete(rm.members, user.ID)
-	user.RmNo = 0
+	delete(rm.members, user.Data.ID)
+	user.Data.RmNo = 0
 
 	// leave not packet broad cast
 	if len(rm.members) > 0 {
 		not := &msg.LeaveRmNot{}
 		not.Names = make([]string, 1)
-		not.Names[0] = user.Name
+		not.Names[0] = user.Data.Name
 		nbuff, _ := proto.Marshal(not)
 
 		for _, v := range rm.members {
@@ -147,67 +147,41 @@ func (rm Room) LeaveMember(user *User) {
 		}
 	}
 
-	log.Println("Leave Room no:", rm.rID, "member count:", len(rm.members))
+	log.Println("Leave Room no:", rm.data.RmNo, "member count:", len(rm.members))
 }
 
-// set room setatus
-
 // load redis db
-
 func load(id uint32) (*Room, error) {
 
 	log.Println("Load room id:", id)
 
 	// hget room
-	rID := strconv.Itoa(int(id))
-	rType, err := rmchRedisClient.HGet("blue_server.room.type", rID).Result()
+	rmNo := strconv.Itoa(int(id))
+	jsonData, err := userRedisClient.HGet("blue_server.room.json", rmNo).Result()
 	if err != nil {
 		return &Room{}, err
 	}
-	rStatus, err := rmchRedisClient.HGet("blue_server.room.status", rID).Result()
-	if err != nil {
-		return &Room{}, err
-	}
-	createTime, err := rmchRedisClient.HGet("blue_server.room.create.time", rID).Result()
-	if err != nil {
-		return &Room{}, err
-	}
-	create, err := time.Parse("2006-01-02 15:04:05", createTime)
-	if err != nil {
-		return &Room{}, err
-	}
-	iStatus := RoomStatusValue[rStatus]
-	iType := RoomTypeValue[rType]
-
+	rdata := RMData{}
+	json.Unmarshal([]byte(jsonData), &rdata)
 	return &Room{
-		rID:        id,
-		rType:      iType,
-		rStatus:    iStatus,
-		members:    make(map[uint32]*User),
-		createTime: create}, nil
+		data:    rdata,
+		members: make(map[uint32]*User)}, nil
 }
 
 // save room redis
 func (rm Room) save() error {
-	id := strconv.Itoa(int(rm.rID))
-	result, err := rmchRedisClient.HSet("blue_server.room.type", id, strconv.Itoa(int(rm.rType))).Result()
+	id := strconv.Itoa(int(rm.data.RmNo))
+	data, _ := json.Marshal(rm.data)
+	result, err := rmchRedisClient.HSet("blue_server.room.json", id, string(data)).Result()
 	if err != nil {
 		return err
 	}
 
-	result, err = rmchRedisClient.HSet("blue_server.room.status", id, strconv.Itoa(int(rm.rStatus))).Result()
-	if err != nil {
-		return err
-	}
-
-	result, err = rmchRedisClient.HSet("blue_server.room.create.time", id, rm.createTime.Format("2006-01-02 15:04:05")).Result()
-	if err != nil {
-		return err
-	}
+	// member info save
 	var members string
 	members = "["
 	for _, v := range rm.members {
-		members += v.Name + ", "
+		members += v.Data.Name + ", "
 	}
 	members = strings.Trim(members, ", ")
 	members += "]"
@@ -232,17 +206,6 @@ func (rm Room) Broadcast(msgID int32, data []byte, bytes uint16) bool {
 	return true
 }
 
-// to string
-func (rm Room) ToString() string {
-	var users string
-	for _, v := range rm.members {
-		users += v.ToString() + "\r\n"
-	}
-
-	return fmt.Sprintf("%d %s %s %s \r\n{%s}", rm.rID, RoomTypeName[rm.rType], RoomStatusName[rm.rStatus],
-		rm.createTime.Format("2006-01-02 15:04:05"), users)
-}
-
 //
 func EnterRm(rmNo uint32, user *User) error {
 	var mutex = &_roomSync
@@ -253,7 +216,7 @@ func EnterRm(rmNo uint32, user *User) error {
 	if rmNo == 0 {
 		for _, rm := range _rooms {
 			if len(rm.members) < 2 {
-				rmNo = rm.rID
+				rmNo = rm.data.RmNo
 				break
 			}
 		}
@@ -262,8 +225,8 @@ func EnterRm(rmNo uint32, user *User) error {
 	if rmNo == 0 {
 		// create room
 		rm := NewRoom()
-		_rooms[rm.rID] = rm
-		rmNo = rm.rID
+		_rooms[rm.data.RmNo] = rm
+		rmNo = rm.data.RmNo
 	}
 
 	if _rooms[rmNo] == nil {
@@ -273,7 +236,7 @@ func EnterRm(rmNo uint32, user *User) error {
 
 			// create room
 			rm = NewRoom()
-			rmNo = rm.rID
+			rmNo = rm.data.RmNo
 		}
 		_rooms[rmNo] = rm
 		rm.EnterMember(user)
@@ -291,7 +254,7 @@ func LeaveRm(rmNo uint32, user *User) error {
 	defer mu.Unlock()
 
 	if rmNo == 0 {
-		rmNo = user.RmNo
+		rmNo = user.Data.RmNo
 	}
 
 	if rmNo == 0 {
@@ -332,7 +295,7 @@ func LoadRoom() {
 
 	var cursor uint64
 	var outputs []string
-	outputs, cursor, err := rmchRedisClient.HScan("blue_server.room.type", cursor, "", 10).Result()
+	outputs, cursor, err := rmchRedisClient.HScan("blue_server.room.json", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
 		return
@@ -341,74 +304,15 @@ func LoadRoom() {
 	for i := 0; i < len(outputs); i += 2 {
 		// redis key
 		no := outputs[i]
-		iNo, _ := strconv.Atoi(no)
+		rmNo, _ := strconv.Atoi(no)
 		// redis value
-		rType := outputs[i+1]
-		irType := RoomTypeValue[rType]
+		rdata := RMData{}
+		json.Unmarshal([]byte(outputs[i+1]), &rdata)
 
-		_rooms[uint32(iNo)] = &Room{
-			rID:     uint32(iNo),
-			rType:   irType,
+		_rooms[uint32(rmNo)] = &Room{
+			data:    rdata,
 			members: make(map[uint32]*User),
-			//rooms:   make(map[uint32]*Room),
 		}
-		//log.Println(_channels[uint32(iNo)])
-	}
-	// room count
-	//cursor = 0
-	//outputs, cursor, err = rmchRedisClient.HScan("blue_server.ch.room.count", cursor, "", 10).Result()
-	//log.Println(outputs)
-	// user count
-	cursor = 0
-	outputs, cursor, err = rmchRedisClient.HScan("blue_server.room.status", cursor, "", 10).Result()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	//log.Println(outputs)
-	for i := 0; i < len(outputs); i += 2 {
-		// redis key
-		no := outputs[i]
-		iNo, _ := strconv.Atoi(no)
-		// redis value
-		rStatus := outputs[i+1]
-		irStatus := RoomStatusValue[rStatus]
-
-		_rooms[uint32(iNo)].rStatus = irStatus
-	}
-
-	cursor = 0
-	outputs, cursor, err = rmchRedisClient.HScan("blue_server.room.create.time", cursor, "", 10).Result()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	//log.Println(outputs)
-	for i := 0; i < len(outputs); i += 2 {
-		// redis key
-		no := outputs[i]
-		iNo, _ := strconv.Atoi(no)
-		// redis value
-		rcreateTime := outputs[i+1]
-		createTime, _ := time.Parse("2006-01-02 15:04:05", rcreateTime)
-		_rooms[uint32(iNo)].createTime = createTime
-	}
-
-	cursor = 0
-	outputs, cursor, err = rmchRedisClient.HScan("blue_server.room.member", cursor, "", 10).Result()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	//log.Println(outputs)
-	for i := 0; i < len(outputs); i += 2 {
-		// redis key
-		no := outputs[i]
-		_, _ = strconv.Atoi(no)
-		// redis value
-		_ = outputs[i+1]
-		// find member add user
-		//log.Println(iNo, rmember)
 	}
 }
 
@@ -421,14 +325,14 @@ func GetRoomList() []*msg.ListRmAns_RoomInfo {
 	index := 0
 	for _, rm := range _rooms {
 		rmList[index] = &msg.ListRmAns_RoomInfo{}
-		rmList[index].RmNo = &rm.rID
-		status := uint32(rm.rStatus)
+		rmList[index].RmNo = &rm.data.RmNo
+		status := uint32(rm.data.RmStatus)
 		rmList[index].RmStatus = &status
 		rmList[index].Names = make([]string, len(rm.members))
 
 		userIndex := 0
 		for _, ur := range rm.members {
-			rmList[index].Names[userIndex] = ur.Name
+			rmList[index].Names[userIndex] = ur.Data.Name
 			userIndex++
 		}
 		index++

@@ -25,3 +25,11 @@ func TestRandStr(t *testing.T) {
 	}
 	fmt.Println("TestRandStr result:", randStr)
 }
+
+func TestLoadConfig(t *testing.T) {
+	config := util.LoadConfig("conf.json")
+	if config == nil {
+		t.Error("config file loading fail")
+	}
+	fmt.Println("TestLoadConfig result:", config)
+}

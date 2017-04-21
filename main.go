@@ -16,13 +16,22 @@ import (
 	"github.com/blueberryserver/tcpserver/contents"
 	"github.com/blueberryserver/tcpserver/msg"
 	"github.com/blueberryserver/tcpserver/network"
+	"github.com/blueberryserver/tcpserver/util"
 )
+
+var serverConfig *util.Config
 
 func main() {
 	//file, err := os.OpenFile("pprof.csv", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	//recorder := pprof.NewTimeRecorder()
 	//contents.SetTimeRecorder(recorder)
 	//summary := pprof.GCSummary()
+
+	serverConfig = util.LoadConfig("conf.json")
+	if serverConfig == nil {
+		fmt.Println("conf.json file loading fail")
+		return
+	}
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -37,14 +46,14 @@ func main() {
 	log.SetOutput(mutiWriter)
 
 	userClient := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
+		Addr:     serverConfig.REDISAddr,
 		Password: "", // no password set
 		DB:       1,  // use default DB
 	})
 	defer userClient.Close()
 
 	rmchClient := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
+		Addr:     serverConfig.REDISAddr,
 		Password: "", // no password set
 		DB:       2,  // use default DB
 	})
@@ -80,7 +89,7 @@ func main() {
 // server start
 func ServerStart() {
 	log.Printf("server start\r\n")
-	server := network.NewServer("tcp", ":20202", contents.CloseHandler)
+	server := network.NewServer("tcp", serverConfig.TCPAddr, contents.CloseHandler)
 	network.SetGlobalNetServer(server)
 
 	// regist server handler
@@ -134,5 +143,5 @@ func httpServer() {
 	})
 
 	log.Println("server httpstart")
-	http.ListenAndServe(":8081", nil)
+	http.ListenAndServe(serverConfig.HTTPAddr, nil)
 }

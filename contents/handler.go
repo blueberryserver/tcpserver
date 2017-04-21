@@ -29,20 +29,20 @@ func CloseHandler(session *network.Session) {
 		log.Println(err)
 		return
 	}
-	log.Println("client disconnect ", user.Name)
+	log.Println("client disconnect ", user.Data.Name)
 
 	// leave channel
 	LeaveCh(user)
 
 	// leave room
-	rm, err := FindRm(user.RmNo)
+	rm, err := FindRm(user.Data.RmNo)
 	if err == nil {
 		rm.LeaveMember(user)
 	}
 
 	// logout
-	user.Status = UserStatusValue["LOGOFF"]
-	user.LogoutTime = time.Now()
+	user.Data.Status = UserStatusValue["LOGOFF"]
+	user.Data.LogoutTime = time.Now()
 	user.Save()
 }
 
@@ -143,17 +143,17 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 
 	// create user obj
 	user := NewUser()
-	user.ID = UserGenID()
-	user.Name = *req.Name
-	user.Platform = UserPlatform(*req.Platform)
-	user.Status = UserStatusValue["LOGON"]
-	user.VcGem = 100
-	user.VcGold = 100
-	user.CreateTime = time.Now()
-	user.LoginTime = time.Now()
-	user.Key = util.RandStr(16)
-	user.ChNo = 0
-	user.RmNo = 0
+	user.Data.ID = UserGenID()
+	user.Data.Name = *req.Name
+	user.Data.Platform = UserPlatform(*req.Platform)
+	user.Data.Status = UserStatusValue["LOGON"]
+	user.Data.VcGem = 100
+	user.Data.VcGold = 100
+	user.Data.CreateTime = time.Now()
+	user.Data.LoginTime = time.Now()
+	user.Data.Key = util.RandStr(16)
+	user.Data.ChNo = 0
+	user.Data.RmNo = 0
 	err = user.Save()
 
 	// update keepalivetime
@@ -233,8 +233,8 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 	user.Session = session
 
 	// update login time
-	user.Status = UserStatusValue["LOGON"]
-	user.LoginTime = time.Now()
+	user.Data.Status = UserStatusValue["LOGON"]
+	user.Data.LoginTime = time.Now()
 	// update keepalivetime
 	user.KeepaliveTime = time.Now()
 
@@ -243,17 +243,17 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
-	platform := uint32(user.Platform)
+	platform := uint32(user.Data.Platform)
 	ans := &msg.LoginAns{
 		Err:      &errCode,
-		Id:       &user.ID,
-		Name:     &user.Name,
+		Id:       &user.Data.ID,
+		Name:     &user.Data.Name,
 		Platform: &platform,
-		Gem:      &user.VcGem,
-		Gold:     &user.VcGold,
-		SecKey:   &user.Key,
-		ChNo:     &user.ChNo,
-		RmNo:     &user.RmNo,
+		Gem:      &user.Data.VcGem,
+		Gold:     &user.Data.VcGold,
+		SecKey:   &user.Data.Key,
+		ChNo:     &user.Data.ChNo,
+		RmNo:     &user.Data.RmNo,
 	}
 
 	abuff, _ := proto.Marshal(ans)
@@ -304,7 +304,7 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	// update keepalivetime
 	user.KeepaliveTime = time.Now()
 
-	rm, err := FindRm(user.RmNo)
+	rm, err := FindRm(user.Data.RmNo)
 	if err != nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
