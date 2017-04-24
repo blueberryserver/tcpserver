@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/blueberryserver/tcpserver/msg"
@@ -14,7 +13,7 @@ import (
 	"strings"
 )
 
-type RMData struct {
+type RmData struct {
 	RmNo       uint32     `json:"rmno"`
 	RmType     RoomType   `json:"rmtype"`
 	RmStatus   RoomStatus `json:"rmstatus"`
@@ -23,7 +22,7 @@ type RMData struct {
 
 // room obj
 type Room struct {
-	data RMData
+	data RmData
 	// etc
 	members map[uint32]*User
 }
@@ -73,19 +72,11 @@ var RoomStatusValue = map[string]RoomStatus{
 	"PLAY":  2,
 }
 
-//
-func InitRoom() {
-	_rooms = make(map[uint32]*Room)
-}
-
-var _roomSync sync.Mutex // sync obj
-var _rooms map[uint32]*Room
-
 // create new room
 func NewRoom() *Room {
 	genID := RoomGenID()
 	return &Room{
-		data: RMData{
+		data: RmData{
 			RmNo:       genID,
 			RmType:     _RoomNormal,
 			RmStatus:   _RmNone,
@@ -147,7 +138,7 @@ func (rm Room) LeaveMember(user *User) {
 		}
 	}
 
-	log.Println("Leave Room no:", rm.data.RmNo, "member count:", len(rm.members))
+	log.Println("Leave Room no:", rm.data.RmNo, user.Data.Name, "member count:", len(rm.members))
 }
 
 // load redis db
@@ -161,7 +152,7 @@ func load(id uint32) (*Room, error) {
 	if err != nil {
 		return &Room{}, err
 	}
-	rdata := RMData{}
+	rdata := RmData{}
 	json.Unmarshal([]byte(jsonData), &rdata)
 	return &Room{
 		data:    rdata,
@@ -206,136 +197,99 @@ func (rm Room) Broadcast(msgID int32, data []byte, bytes uint16) bool {
 	return true
 }
 
+// generate id
+func RoomGenID() uint32 {
+
+	genID, _ := rmchRedisClient.Incr("blue_server.manager.room.genid").Result()
+	return uint32(genID)
+}
+
 //
-func EnterRm(rmNo uint32, user *User) error {
-	var mutex = &_roomSync
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	// quick join
-	if rmNo == 0 {
-		for _, rm := range _rooms {
-			if len(rm.members) < 2 {
-				rmNo = rm.data.RmNo
-				break
-			}
-		}
+func FindRm(no uint32) (*Room, error) {
+	rmcmd := &RoomCmdData{
+		Cmd: "FindRoom",
+		No:  no,
+	}
+	RoomCmd <- rmcmd
+	rmcmd = <-RoomCmd
+	if rmcmd.Result != nil {
+		return nil, rmcmd.Result
 	}
 
-	if rmNo == 0 {
-		// create room
-		rm := NewRoom()
-		_rooms[rm.data.RmNo] = rm
-		rmNo = rm.data.RmNo
+	return rmcmd.Room, nil
+}
+
+//
+func EnterRm(no uint32, user *User) error {
+	rmcmd := &RoomCmdData{
+		Cmd:  "EnterRoom",
+		No:   no,
+		User: user,
+	}
+	RoomCmd <- rmcmd
+	rmcmd = <-RoomCmd
+	if rmcmd.Result != nil {
+		return rmcmd.Result
 	}
 
-	if _rooms[rmNo] == nil {
-		rm, err := load(rmNo)
-		if err != nil {
-			//return err
-
-			// create room
-			rm = NewRoom()
-			rmNo = rm.data.RmNo
-		}
-		_rooms[rmNo] = rm
-		rm.EnterMember(user)
-		return nil
-	}
-
-	_rooms[rmNo].EnterMember(user)
 	return nil
 }
 
 //
-func LeaveRm(rmNo uint32, user *User) error {
-	var mu = &_roomSync
-	mu.Lock()
-	defer mu.Unlock()
-
-	if rmNo == 0 {
-		rmNo = user.Data.RmNo
+func LeaveRm(no uint32, user *User) error {
+	rmcmd := &RoomCmdData{
+		Cmd:  "LeaveRoom",
+		No:   no,
+		User: user,
+	}
+	RoomCmd <- rmcmd
+	rmcmd = <-RoomCmd
+	if rmcmd.Result != nil {
+		return rmcmd.Result
 	}
 
-	if rmNo == 0 {
-		return errors.New("Not room member")
-	}
-
-	if _rooms[rmNo] == nil {
-		rm, err := load(rmNo)
-		if err != nil {
-			return err
-		}
-		_rooms[rmNo] = rm
-		rm.LeaveMember(user)
-		return nil
-	}
-
-	_rooms[rmNo].LeaveMember(user)
-
-	// room destory
-	if len(_rooms[rmNo].members) == 0 {
-		//delete(ch.rooms, rmNo)
-	}
 	return nil
-}
-
-//
-func FindRm(rmNo uint32) (*Room, error) {
-	if _rooms[rmNo] == nil {
-		return nil, errors.New("Not find room")
-	}
-	return _rooms[rmNo], nil
-}
-
-// load room from redis
-func LoadRoom() {
-	log.Println("loading room info")
-	_rooms = make(map[uint32]*Room)
-
-	var cursor uint64
-	var outputs []string
-	outputs, cursor, err := rmchRedisClient.HScan("blue_server.room.json", cursor, "", 10).Result()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	for i := 0; i < len(outputs); i += 2 {
-		// redis key
-		no := outputs[i]
-		rmNo, _ := strconv.Atoi(no)
-		// redis value
-		rdata := RMData{}
-		json.Unmarshal([]byte(outputs[i+1]), &rdata)
-
-		_rooms[uint32(rmNo)] = &Room{
-			data:    rdata,
-			members: make(map[uint32]*User),
-		}
-	}
 }
 
 //
 func GetRoomList() []*msg.ListRmAns_RoomInfo {
-	rmList := make([]*msg.ListRmAns_RoomInfo, len(_rooms))
-	var mu = &_roomSync
-	mu.Lock()
-	defer mu.Unlock()
-	index := 0
-	for _, rm := range _rooms {
-		rmList[index] = &msg.ListRmAns_RoomInfo{}
-		rmList[index].RmNo = &rm.data.RmNo
-		status := uint32(rm.data.RmStatus)
-		rmList[index].RmStatus = &status
-		rmList[index].Names = make([]string, len(rm.members))
-
-		userIndex := 0
-		for _, ur := range rm.members {
-			rmList[index].Names[userIndex] = ur.Data.Name
-			userIndex++
-		}
-		index++
+	rmcmd := &RoomCmdData{
+		Cmd: "ListRoomAns",
 	}
-	return rmList
+	RoomCmd <- rmcmd
+	rmcmd = <-RoomCmd
+	if rmcmd.Result != nil {
+		return nil
+	}
+	return rmcmd.List
+}
+
+//
+func LoadRoom() error {
+	log.Println("loading room info")
+	rmcmd := &RoomCmdData{
+		Cmd: "LoadRoom",
+	}
+	RoomCmd <- rmcmd
+	rmcmd = <-RoomCmd
+	if rmcmd.Result != nil {
+		return rmcmd.Result
+	}
+
+	return nil
+}
+
+//
+func ListRoom() string {
+	rmcmd := &RoomCmdData{
+		Cmd:     "ListRoom",
+		Monitor: "",
+	}
+	RoomCmd <- rmcmd
+	rmcmd = <-RoomCmd
+	if rmcmd.Result != nil {
+		return ""
+	}
+
+	return rmcmd.Monitor
 }

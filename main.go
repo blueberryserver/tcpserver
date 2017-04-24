@@ -63,6 +63,13 @@ func main() {
 	contents.SetUserRedisClient(userClient)
 	contents.SetRmChRedisClient(rmchClient)
 
+	go contents.ChannelProcFunc()
+	go contents.RoomProcFunc()
+	go contents.UserProcFunc()
+
+	// wait 1 second
+	time.Sleep(1 * time.Second)
+
 	// generate channel list
 	contents.LoadChannel()
 	contents.LoadRoom()
@@ -116,16 +123,18 @@ func update(c chan int) {
 	id := <-c
 	for {
 		time.Sleep(10 * time.Second)
-		contents.UpdateChannel(id)
 		contents.UpdateManager(id)
+		contents.CheckUser()
 	}
 }
 
 func httpServer() {
 	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
 		//res.Write([]byte("Hello, world!")) // 웹 브라우저에 응답
-		str := "<p>.......... ..........................</p>"
-		str += contents.MonitorChannel()
+		str := "<p>.....................................</p>"
+		str += contents.ListChannel()
+		str += "<p>.....................................</p>"
+		str += contents.ListRoom()
 		str += "<p>.....................................</p>"
 		html := `
 		<html>

@@ -28,7 +28,7 @@ func SetUserRedisClient(client *redis.Client) {
 }
 
 // user data for json
-type UData struct {
+type UrData struct {
 	ID         uint32       `json:"id"`
 	Name       string       `json:"name"`
 	Platform   UserPlatform `json:"platform"`
@@ -45,7 +45,7 @@ type UData struct {
 
 // user obj
 type User struct {
-	Data          UData
+	Data          UrData
 	Session       *network.Session
 	KeepaliveTime time.Time
 }
@@ -106,10 +106,10 @@ func LoadUser(id uint32) (*User, error) {
 	if err != nil {
 		return &User{}, err
 	}
-	udata := UData{}
-	json.Unmarshal([]byte(jsonData), &udata)
+	urdata := UrData{}
+	json.Unmarshal([]byte(jsonData), &urdata)
 	return &User{
-		Data:          udata,
+		Data:          urdata,
 		Session:       nil,
 		KeepaliveTime: time.Now()}, nil
 }
@@ -159,4 +159,74 @@ func UpdateManager(id int) {
 		network.StopServer()
 		_, _ = userRedisClient.Set("blue_server.manager.server.running", "TRUE", 0).Result()
 	}
+}
+
+//
+func FindUser(session *network.Session) (*User, error) {
+	ucmd := &UserCmdData{
+		Cmd:     "FindUser",
+		Session: session,
+	}
+	UserCmd <- ucmd
+	ucmd = <-UserCmd
+	if ucmd.Result != nil {
+		return nil, ucmd.Result
+	}
+	return ucmd.User, nil
+}
+
+//
+func FindUserByID(id uint32) (*User, error) {
+	ucmd := &UserCmdData{
+		Cmd: "FindUserByID",
+		ID:  id,
+	}
+	UserCmd <- ucmd
+	ucmd = <-UserCmd
+	if ucmd.Result != nil {
+		return nil, ucmd.Result
+	}
+	return ucmd.User, nil
+}
+
+//
+func CheckUser() error {
+	ucmd := &UserCmdData{
+		Cmd: "CheckUser",
+	}
+	UserCmd <- ucmd
+	ucmd = <-UserCmd
+	if ucmd.Result != nil {
+		return ucmd.Result
+	}
+	return nil
+}
+
+//
+func AddUser(user *User) error {
+	ucmd := &UserCmdData{
+		Cmd:  "AddUser",
+		ID:   user.Data.ID,
+		User: user,
+	}
+	UserCmd <- ucmd
+	ucmd = <-UserCmd
+	if ucmd.Result != nil {
+		return ucmd.Result
+	}
+	return nil
+}
+
+//
+func DelUser(user *User) error {
+	ucmd := &UserCmdData{
+		Cmd: "DelUser",
+		ID:  user.Data.ID,
+	}
+	UserCmd <- ucmd
+	ucmd = <-UserCmd
+	if ucmd.Result != nil {
+		return ucmd.Result
+	}
+	return nil
 }

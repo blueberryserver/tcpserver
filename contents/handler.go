@@ -29,21 +29,31 @@ func CloseHandler(session *network.Session) {
 		log.Println(err)
 		return
 	}
+
 	log.Println("client disconnect ", user.Data.Name)
 
 	// leave channel
-	LeaveCh(user)
+	err = LeaveCh(user.Data.ChNo, user)
+	if err != nil {
+		log.Println(err)
+	}
 
 	// leave room
-	rm, err := FindRm(user.Data.RmNo)
-	if err == nil {
-		rm.LeaveMember(user)
+	err = LeaveRm(user.Data.RmNo, user)
+	if err != nil {
+		log.Println(err)
 	}
 
 	// logout
 	user.Data.Status = UserStatusValue["LOGOFF"]
 	user.Data.LogoutTime = time.Now()
 	user.Save()
+
+	// del user
+	err = DelUser(user)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 // req ping
@@ -142,18 +152,22 @@ func (m ReqRegist) Execute(session *network.Session, data []byte, length uint16)
 	}
 
 	// create user obj
-	user := NewUser()
-	user.Data.ID = UserGenID()
-	user.Data.Name = *req.Name
-	user.Data.Platform = UserPlatform(*req.Platform)
-	user.Data.Status = UserStatusValue["LOGON"]
-	user.Data.VcGem = 100
-	user.Data.VcGold = 100
-	user.Data.CreateTime = time.Now()
-	user.Data.LoginTime = time.Now()
-	user.Data.Key = util.RandStr(16)
-	user.Data.ChNo = 0
-	user.Data.RmNo = 0
+	user := &User{
+		Data: UrData{
+			ID:         UserGenID(),
+			Name:       *req.Name,
+			Platform:   UserPlatform(*req.Platform),
+			Status:     UserStatusValue["LOGON"],
+			VcGem:      100,
+			VcGold:     100,
+			CreateTime: time.Now(),
+			LoginTime:  time.Now(),
+			Key:        util.RandStr(16),
+			ChNo:       0,
+			RmNo:       0},
+		Session:       nil,
+		KeepaliveTime: time.Now()}
+
 	err = user.Save()
 
 	// update keepalivetime
@@ -240,6 +254,19 @@ func (m ReqLogin) Execute(session *network.Session, data []byte, length uint16) 
 
 	// save user info
 	user.Save()
+
+	// add user list
+	err = AddUser(user)
+	if err != nil {
+		log.Println(err)
+		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
+		ans := &msg.LoginAns{
+			Err: &errCode,
+		}
+		abuff, _ := proto.Marshal(ans)
+		session.SendPacket(msg.Msg_Id_value["Login_Ans"], abuff, uint16(len(abuff)))
+		return false
+	}
 
 	// ans
 	errCode := msg.ErrorCode(msg.ErrorCode_ERR_SUCCESS)
