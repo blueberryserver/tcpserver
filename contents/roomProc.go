@@ -115,6 +115,8 @@ func enterRm(no uint32, rtype uint32, user *User) error {
 				if (len(rm.members) == 0) ||
 					(len(rm.members) == 1 && _RoomSolo != rm.data.RmType) {
 					no = rm.data.RmNo
+
+					// change room type
 					rm.data.RmType = RoomType(rtype)
 					break
 				}
@@ -150,6 +152,7 @@ func enterRm(no uint32, rtype uint32, user *User) error {
 		return nil
 	}
 
+	RoomList[no].data.RmType = RoomType(rtype)
 	RoomList[no].EnterMember(user)
 	return nil
 }
