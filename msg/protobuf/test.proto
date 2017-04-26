@@ -108,6 +108,7 @@ message LeaveChAns {
 
 message EnterRmReq {
 	required uint32 rmNo = 1;		// 방 넘버(0: 자동 선택, 1 ~ )
+	optional uint32 type = 2;		// 방 타입(1: 일반 2: 솔로)
 }
 
 message EnterRmAns {
@@ -164,7 +165,8 @@ message ListRmAns {
 	message RoomInfo {
 		optional uint32 rmNo = 1;		// 방번호
 		optional uint32 rmStatus = 2;	// 방 상태 ( 생성 : 1 준비 중 : 2 플레이 중: 3 )
-		repeated string names = 3;		// 맴버 이름
+		optional uint32 rmType = 3;		// 방 타입 ( 1: 일반 2: 솔로 )
+		repeated string names = 4;		// 맴버 이름
 	}
 
 	required ErrorCode err = 1;

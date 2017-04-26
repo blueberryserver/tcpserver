@@ -462,7 +462,7 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 	// update keepalivetime
 	user.KeepaliveTime = time.Now()
 
-	err = EnterRm(*req.RmNo, user)
+	err = EnterRm(*req.RmNo, *req.Type, user)
 	if err != nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)

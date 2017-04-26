@@ -33,19 +33,19 @@ type RoomType uint32
 // room type
 const (
 	_RoomNormal RoomType = 1
-	_RoomDual   RoomType = 2
+	_RoomSolo   RoomType = 2
 )
 
 // room type
 var RoomTypeName = map[RoomType]string{
 	1: "Normal",
-	2: "Dual",
+	2: "Solo",
 }
 
 // room type
 var RoomTypeValue = map[string]RoomType{
 	"Normal": 1,
-	"Dual":   2,
+	"Solo":   2,
 }
 
 // room status
@@ -220,10 +220,15 @@ func FindRm(no uint32) (*Room, error) {
 }
 
 //
-func EnterRm(no uint32, user *User) error {
+func EnterRm(no uint32, rtype uint32, user *User) error {
+	// default normal
+	if rtype == 0 {
+		rtype = 1
+	}
 	rmcmd := &RoomCmdData{
 		Cmd:  "EnterRoom",
 		No:   no,
+		Type: rtype,
 		User: user,
 	}
 	RoomCmd <- rmcmd

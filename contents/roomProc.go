@@ -20,6 +20,7 @@ var RoomList map[uint32]*Room
 type RoomCmdData struct {
 	Cmd     string                    `json:"cmd"`
 	No      uint32                    `json:"no"`
+	Type    uint32                    `json:"type"`
 	Result  error                     `json:"result"`
 	User    *User                     `json:"user"`
 	Room    *Room                     `json:"room"`
@@ -40,7 +41,7 @@ func RoomProcFunc() {
 			case "LeaveRoom":
 				cmd.Result = leaveRm(cmd.No, cmd.User)
 			case "EnterRoom":
-				cmd.Result = enterRm(cmd.No, cmd.User)
+				cmd.Result = enterRm(cmd.No, cmd.Type, cmd.User)
 			case "ListRoomAns":
 				cmd.List, cmd.Result = listRmAns()
 			case "ListRoom":
@@ -107,19 +108,32 @@ func leaveRm(no uint32, user *User) error {
 }
 
 //
-func enterRm(no uint32, user *User) error {
+func enterRm(no uint32, rtype uint32, user *User) error {
 	if no == 0 {
 		for _, rm := range RoomList {
-			if len(rm.members) < 2 {
-				no = rm.data.RmNo
-				break
+			if RoomType(rtype) == _RoomNormal {
+				if (len(rm.members) == 0) ||
+					(len(rm.members) == 1 && _RoomSolo != rm.data.RmType) {
+					no = rm.data.RmNo
+					rm.data.RmType = RoomType(rtype)
+					break
+				}
+			} else {
+				if len(rm.members) == 0 {
+					no = rm.data.RmNo
+					// change room type
+					rm.data.RmType = RoomType(rtype)
+					break
+				}
 			}
+
 		}
 	}
 
 	if no == 0 {
 		// create room
 		rm := NewRoom()
+		rm.data.RmType = RoomType(rtype)
 		RoomList[rm.data.RmNo] = rm
 		no = rm.data.RmNo
 	}
@@ -128,6 +142,7 @@ func enterRm(no uint32, user *User) error {
 		rm, err := load(no)
 		if err != nil {
 			rm = NewRoom()
+			rm.data.RmType = RoomType(rtype)
 			no = rm.data.RmNo
 		}
 		RoomList[no] = rm
@@ -149,6 +164,8 @@ func listRmAns() ([]*msg.ListRmAns_RoomInfo, error) {
 		list[index].RmNo = &rm.data.RmNo
 		status := uint32(rm.data.RmStatus)
 		list[index].RmStatus = &status
+		rmtype := uint32(rm.data.RmType)
+		list[index].RmType = &rmtype
 		list[index].Names = make([]string, len(rm.members))
 
 		userIndex := 0
@@ -162,19 +179,16 @@ func listRmAns() ([]*msg.ListRmAns_RoomInfo, error) {
 }
 
 func listRm(monitor *string) error {
-	for i := 0; i < len(RoomList)+1; i++ {
-		if RoomList[uint32(i)] == nil {
-			continue
-		}
-
-		*monitor += fmt.Sprintln("<p>Room No: " + strconv.Itoa(int(RoomList[uint32(i)].data.RmNo)) + " Type: " +
-			RoomTypeName[RoomList[uint32(i)].data.RmType] + " Status: " +
-			RoomStatusName[RoomList[uint32(i)].data.RmStatus] + "</p>")
-		for _, ur := range RoomList[uint32(i)].members {
+	for _, rm := range RoomList {
+		*monitor += fmt.Sprintln("<p>Room No: " + strconv.Itoa(int(rm.data.RmNo)) + " Type: " +
+			RoomTypeName[rm.data.RmType] + " Status: " +
+			RoomStatusName[rm.data.RmStatus] + "</p>")
+		for _, ur := range rm.members {
 			*monitor += "<p><blockquote>"
 			*monitor += fmt.Sprintf("User: %v", ur.Data)
 			*monitor += "</blockquote>"
 		}
+		rm.save()
 	}
 	return nil
 }
