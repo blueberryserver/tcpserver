@@ -62,61 +62,60 @@ var ChTypeValue = map[string]ChType{
 //
 func EnterCh(no uint32, user *User) error {
 	chcmd := &ChCmdData{
-		Cmd:  "EnterCh",
-		No:   no,
-		User: user,
+		Cmd:    "EnterCh",
+		No:     no,
+		User:   user,
+		Result: make(chan *CmdResult),
 	}
 
 	ChCmd <- chcmd
-	chcmd = <-ChCmd
-	if chcmd.Result != nil {
-		return chcmd.Result
-	}
-	return chcmd.Result
+	chcmd.Result <- &CmdResult{}
+	result := <-chcmd.Result
+
+	return result.Err
 }
 
 //
 func LeaveCh(no uint32, user *User) error {
 	chcmd := &ChCmdData{
-		Cmd:  "LeaveCh",
-		No:   no,
-		User: user,
+		Cmd:    "LeaveCh",
+		No:     no,
+		User:   user,
+		Result: make(chan *CmdResult),
 	}
 
 	ChCmd <- chcmd
-	chcmd = <-ChCmd
-	if chcmd.Result != nil {
-		return chcmd.Result
-	}
-	return chcmd.Result
+	chcmd.Result <- &CmdResult{}
+	result := <-chcmd.Result
+
+	return result.Err
 }
 
 //
 func LoadChannel() error {
 	log.Println("loading channel info")
 	chcmd := &ChCmdData{
-		Cmd: "LoadCh",
+		Cmd:    "LoadCh",
+		Result: make(chan *CmdResult),
 	}
 
 	ChCmd <- chcmd
-	chcmd = <-ChCmd
-	if chcmd.Result != nil {
-		return chcmd.Result
-	}
-	return chcmd.Result
+	chcmd.Result <- &CmdResult{}
+	result := <-chcmd.Result
+
+	return result.Err
 }
 
 //
 func ListChannel() string {
 	chcmd := &ChCmdData{
-		Cmd:     "ListCh",
-		Monitor: "",
+		Cmd:    "ListCh",
+		Result: make(chan *CmdResult),
 	}
 
 	ChCmd <- chcmd
-	chcmd = <-ChCmd
-	if chcmd.Result != nil {
-		return ""
-	}
-	return chcmd.Monitor
+	chcmd.Result <- &CmdResult{}
+	result := <-chcmd.Result
+
+	return result.Data.(string)
 }

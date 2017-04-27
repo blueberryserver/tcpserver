@@ -166,38 +166,47 @@ func FindUser(session *network.Session) (*User, error) {
 	ucmd := &UserCmdData{
 		Cmd:     "FindUser",
 		Session: session,
+		Result:  make(chan *CmdResult),
 	}
 	UserCmd <- ucmd
-	ucmd = <-UserCmd
-	if ucmd.Result != nil {
-		return nil, ucmd.Result
+	ucmd.Result <- &CmdResult{}
+
+	result := <-ucmd.Result
+	if result.Data != nil {
+		return result.Data.(*User), result.Err
 	}
-	return ucmd.User, nil
+	return nil, result.Err
 }
 
 //
 func FindUserByID(id uint32) (*User, error) {
 	ucmd := &UserCmdData{
-		Cmd: "FindUserByID",
-		ID:  id,
+		Cmd:    "FindUserByID",
+		ID:     id,
+		Result: make(chan *CmdResult),
 	}
 	UserCmd <- ucmd
-	ucmd = <-UserCmd
-	if ucmd.Result != nil {
-		return nil, ucmd.Result
+	ucmd.Result <- &CmdResult{}
+
+	result := <-ucmd.Result
+	if result.Data != nil {
+		return result.Data.(*User), result.Err
 	}
-	return ucmd.User, nil
+	return nil, result.Err
 }
 
 //
 func CheckUser() error {
 	ucmd := &UserCmdData{
-		Cmd: "CheckUser",
+		Cmd:    "CheckUser",
+		Result: make(chan *CmdResult),
 	}
 	UserCmd <- ucmd
-	ucmd = <-UserCmd
-	if ucmd.Result != nil {
-		return ucmd.Result
+	ucmd.Result <- &CmdResult{}
+	result := <-ucmd.Result
+
+	if result.Err != nil {
+		return result.Err
 	}
 	return nil
 }
@@ -205,14 +214,17 @@ func CheckUser() error {
 //
 func AddUser(user *User) error {
 	ucmd := &UserCmdData{
-		Cmd:  "AddUser",
-		ID:   user.Data.ID,
-		User: user,
+		Cmd:    "AddUser",
+		ID:     user.Data.ID,
+		User:   user,
+		Result: make(chan *CmdResult),
 	}
 	UserCmd <- ucmd
-	ucmd = <-UserCmd
-	if ucmd.Result != nil {
-		return ucmd.Result
+	ucmd.Result <- &CmdResult{}
+	result := <-ucmd.Result
+
+	if result.Err != nil {
+		return result.Err
 	}
 	return nil
 }
@@ -220,13 +232,16 @@ func AddUser(user *User) error {
 //
 func DelUser(user *User) error {
 	ucmd := &UserCmdData{
-		Cmd: "DelUser",
-		ID:  user.Data.ID,
+		Cmd:    "DelUser",
+		ID:     user.Data.ID,
+		Result: make(chan *CmdResult),
 	}
 	UserCmd <- ucmd
-	ucmd = <-UserCmd
-	if ucmd.Result != nil {
-		return ucmd.Result
+	ucmd.Result <- &CmdResult{}
+	result := <-ucmd.Result
+
+	if result.Err != nil {
+		return result.Err
 	}
 	return nil
 }

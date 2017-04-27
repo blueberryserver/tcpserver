@@ -317,7 +317,7 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	log.Printf("Server ReqRelay msg: %d %s \r\n", m.msgID, req.String())
 
 	user, err := FindUser(session)
-	if err != nil {
+	if err != nil || user == nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
 		ans := &msg.RelayAns{
@@ -332,7 +332,7 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	user.KeepaliveTime = time.Now()
 
 	rm, err := FindRm(user.Data.RmNo)
-	if err != nil {
+	if err != nil || rm == nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
 		ans := &msg.RelayAns{
@@ -344,7 +344,7 @@ func (m ReqRelay) Execute(session *network.Session, data []byte, length uint16) 
 	}
 	// room bradcasting
 	not := &msg.RelayNot{
-		RmNo: req.RmNo,
+		RmNo: &user.Data.RmNo,
 		Data: req.Data,
 	}
 	nbuff, _ := proto.Marshal(not)

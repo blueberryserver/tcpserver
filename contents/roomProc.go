@@ -18,14 +18,11 @@ var RoomList map[uint32]*Room
 
 // cmd
 type RoomCmdData struct {
-	Cmd     string                    `json:"cmd"`
-	No      uint32                    `json:"no"`
-	Type    uint32                    `json:"type"`
-	Result  error                     `json:"result"`
-	User    *User                     `json:"user"`
-	Room    *Room                     `json:"room"`
-	List    []*msg.ListRmAns_RoomInfo `json:"List"`
-	Monitor string                    `json:"monitor"`
+	Cmd    string `json:"cmd"`
+	No     uint32 `json:"no"`
+	Type   uint32 `json:"type"`
+	User   *User  `json:"user"`
+	Result chan *CmdResult
 }
 
 // go routine by channel commuity
@@ -37,25 +34,30 @@ func RoomProcFunc() {
 
 			switch cmd.Cmd {
 			case "LoadRoom":
-				cmd.Result = loadRm()
+				loadRm(cmd.Result)
+
 			case "LeaveRoom":
-				cmd.Result = leaveRm(cmd.No, cmd.User)
+				leaveRm(cmd.No, cmd.User, cmd.Result)
+
 			case "EnterRoom":
-				cmd.Result = enterRm(cmd.No, cmd.Type, cmd.User)
+				enterRm(cmd.No, cmd.Type, cmd.User, cmd.Result)
+
 			case "ListRoomAns":
-				cmd.List, cmd.Result = listRmAns()
+				listRmAns(cmd.Result)
+
 			case "ListRoom":
-				cmd.Result = listRm(&cmd.Monitor)
+				listRm(cmd.Result)
+
 			case "FindRoom":
-				cmd.Room, cmd.Result = findRm(cmd.No)
+				findRm(cmd.No, cmd.Result)
 			}
-			RoomCmd <- cmd
 		}
 	}
 }
 
 //
-func loadRm() error {
+func loadRm(result chan *CmdResult) {
+	sResult := <-result
 	RoomList = make(map[uint32]*Room)
 
 	var cursor uint64
@@ -63,7 +65,9 @@ func loadRm() error {
 	outputs, cursor, err := rmchRedisClient.HScan("blue_server.room.json", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
-		return err
+		sResult.Err = err
+		result <- sResult
+		return
 	}
 
 	for i := 0; i < len(outputs); i += 2 {
@@ -79,36 +83,46 @@ func loadRm() error {
 			members: make(map[uint32]*User),
 		}
 	}
-	return nil
+	sResult.Err = nil
+	result <- sResult
 }
 
 //
-func leaveRm(no uint32, user *User) error {
+func leaveRm(no uint32, user *User, result chan *CmdResult) {
+	sResult := <-result
 	if no == 0 {
 		no = user.Data.RmNo
 	}
 
 	if no == 0 {
-		return errors.New("not room member")
+		sResult.Err = errors.New("not room member")
+		result <- sResult
+		return
 	}
 
 	if RoomList[no] == nil {
 		rm, err := load(no)
 		if err != nil {
 			log.Println(err)
-			return err
+			sResult.Err = err
+			result <- sResult
 		}
 		RoomList[no] = rm
 		rm.LeaveMember(user)
-		return nil
+		sResult.Err = nil
+		result <- sResult
+		return
 	}
 
 	RoomList[no].LeaveMember(user)
-	return nil
+	sResult.Err = nil
+	result <- sResult
 }
 
 //
-func enterRm(no uint32, rtype uint32, user *User) error {
+func enterRm(no uint32, rtype uint32, user *User, result chan *CmdResult) {
+	sResult := <-result
+
 	if no == 0 {
 		for _, rm := range RoomList {
 			if RoomType(rtype) == _RoomNormal {
@@ -149,18 +163,22 @@ func enterRm(no uint32, rtype uint32, user *User) error {
 		}
 		RoomList[no] = rm
 		rm.EnterMember(user)
-		return nil
+		sResult.Err = nil
+		result <- sResult
+		return
 	}
 
 	RoomList[no].data.RmType = RoomType(rtype)
 	RoomList[no].EnterMember(user)
-	return nil
+	sResult.Err = nil
+	result <- sResult
 }
 
 //
-func listRmAns() ([]*msg.ListRmAns_RoomInfo, error) {
-	list := make([]*msg.ListRmAns_RoomInfo, len(RoomList))
+func listRmAns(result chan *CmdResult) {
+	sResult := <-result
 
+	list := make([]*msg.ListRmAns_RoomInfo, len(RoomList))
 	index := 0
 	for _, rm := range RoomList {
 		list[index] = &msg.ListRmAns_RoomInfo{}
@@ -178,28 +196,43 @@ func listRmAns() ([]*msg.ListRmAns_RoomInfo, error) {
 		}
 		index++
 	}
-	return list, nil
+	sResult.Data = list
+	sResult.Err = nil
+	result <- sResult
 }
 
-func listRm(monitor *string) error {
+func listRm(result chan *CmdResult) {
+	sResult := <-result
+	var monitor string
 	for _, rm := range RoomList {
-		*monitor += fmt.Sprintln("<p>Room No: " + strconv.Itoa(int(rm.data.RmNo)) + " Type: " +
+		monitor += fmt.Sprintln("<p>Room No: " + strconv.Itoa(int(rm.data.RmNo)) + " Type: " +
 			RoomTypeName[rm.data.RmType] + " Status: " +
 			RoomStatusName[rm.data.RmStatus] + "</p>")
 		for _, ur := range rm.members {
-			*monitor += "<p><blockquote>"
-			*monitor += fmt.Sprintf("User: %v", ur.Data)
-			*monitor += "</blockquote>"
+			monitor += "<p><blockquote>"
+			monitor += fmt.Sprintf("User: %v", ur.Data)
+			monitor += "</blockquote>"
 		}
 		rm.save()
 	}
-	return nil
+
+	sResult.Data = monitor
+	sResult.Err = nil
+	result <- sResult
 }
 
 //
-func findRm(no uint32) (*Room, error) {
+func findRm(no uint32, result chan *CmdResult) {
+	sResult := <-result
+	sResult.Data = nil
+	sResult.Err = errors.New("not find room")
+
 	if RoomList[no] == nil {
-		return nil, errors.New("not find room")
+		result <- sResult
+		return
 	}
-	return RoomList[no], nil
+
+	sResult.Data = RoomList[no]
+	sResult.Err = nil
+	result <- sResult
 }

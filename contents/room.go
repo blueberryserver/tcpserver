@@ -207,16 +207,17 @@ func RoomGenID() uint32 {
 //
 func FindRm(no uint32) (*Room, error) {
 	rmcmd := &RoomCmdData{
-		Cmd: "FindRoom",
-		No:  no,
+		Cmd:    "FindRoom",
+		No:     no,
+		Result: make(chan *CmdResult),
 	}
 	RoomCmd <- rmcmd
-	rmcmd = <-RoomCmd
-	if rmcmd.Result != nil {
-		return nil, rmcmd.Result
+	rmcmd.Result <- &CmdResult{}
+	result := <-rmcmd.Result
+	if result.Data != nil {
+		return result.Data.(*Room), result.Err
 	}
-
-	return rmcmd.Room, nil
+	return nil, result.Err
 }
 
 //
@@ -226,75 +227,69 @@ func EnterRm(no uint32, rtype uint32, user *User) error {
 		rtype = 1
 	}
 	rmcmd := &RoomCmdData{
-		Cmd:  "EnterRoom",
-		No:   no,
-		Type: rtype,
-		User: user,
+		Cmd:    "EnterRoom",
+		No:     no,
+		Type:   rtype,
+		User:   user,
+		Result: make(chan *CmdResult),
 	}
 	RoomCmd <- rmcmd
-	rmcmd = <-RoomCmd
-	if rmcmd.Result != nil {
-		return rmcmd.Result
-	}
-
-	return nil
+	rmcmd.Result <- &CmdResult{}
+	result := <-rmcmd.Result
+	return result.Err
 }
 
 //
 func LeaveRm(no uint32, user *User) error {
 	rmcmd := &RoomCmdData{
-		Cmd:  "LeaveRoom",
-		No:   no,
-		User: user,
+		Cmd:    "LeaveRoom",
+		No:     no,
+		User:   user,
+		Result: make(chan *CmdResult),
 	}
 	RoomCmd <- rmcmd
-	rmcmd = <-RoomCmd
-	if rmcmd.Result != nil {
-		return rmcmd.Result
-	}
-
-	return nil
+	rmcmd.Result <- &CmdResult{}
+	result := <-rmcmd.Result
+	return result.Err
 }
 
 //
 func GetRoomList() []*msg.ListRmAns_RoomInfo {
 	rmcmd := &RoomCmdData{
-		Cmd: "ListRoomAns",
+		Cmd:    "ListRoomAns",
+		Result: make(chan *CmdResult),
 	}
 	RoomCmd <- rmcmd
-	rmcmd = <-RoomCmd
-	if rmcmd.Result != nil {
-		return nil
+	rmcmd.Result <- &CmdResult{}
+	result := <-rmcmd.Result
+	if result.Data != nil {
+		return result.Data.([]*msg.ListRmAns_RoomInfo)
 	}
-	return rmcmd.List
+	return nil
 }
 
 //
 func LoadRoom() error {
 	log.Println("loading room info")
 	rmcmd := &RoomCmdData{
-		Cmd: "LoadRoom",
+		Cmd:    "LoadRoom",
+		Result: make(chan *CmdResult),
 	}
 	RoomCmd <- rmcmd
-	rmcmd = <-RoomCmd
-	if rmcmd.Result != nil {
-		return rmcmd.Result
-	}
-
-	return nil
+	rmcmd.Result <- &CmdResult{}
+	result := <-rmcmd.Result
+	return result.Err
 }
 
 //
 func ListRoom() string {
 	rmcmd := &RoomCmdData{
-		Cmd:     "ListRoom",
-		Monitor: "",
+		Cmd:    "ListRoom",
+		Result: make(chan *CmdResult),
 	}
 	RoomCmd <- rmcmd
-	rmcmd = <-RoomCmd
-	if rmcmd.Result != nil {
-		return ""
-	}
+	rmcmd.Result <- &CmdResult{}
+	result := <-rmcmd.Result
 
-	return rmcmd.Monitor
+	return result.Data.(string)
 }

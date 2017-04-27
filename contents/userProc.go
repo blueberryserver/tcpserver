@@ -19,9 +19,15 @@ var UserList map[uint32]*User
 type UserCmdData struct {
 	Cmd     string           `json:"cmd"`
 	ID      uint32           `json:"id"`
-	Result  error            `json:"result"`
 	User    *User            `json:"user"`
 	Session *network.Session `json:"session"`
+	Result  chan *CmdResult  `json:"result"`
+}
+
+//
+type CmdResult struct {
+	Err  error       `json:"err"`
+	Data interface{} `json:"data"`
 }
 
 // go routine by channel commuity
@@ -34,51 +40,71 @@ func UserProcFunc() {
 
 			switch cmd.Cmd {
 			case "AddUser":
-				cmd.Result = addUser(cmd.ID, cmd.User)
+				addUser(cmd.ID, cmd.User, cmd.Result)
+
 			case "DelUser":
-				cmd.Result = delUser(cmd.ID)
+				delUser(cmd.ID, cmd.Result)
+
 			case "ListUser":
-				cmd.Result = listUser()
+				listUser(cmd.Result)
+
 			case "CheckUser":
-				cmd.Result = checkUser()
+				checkUser(cmd.Result)
+
 			case "FindUserByID":
-				cmd.User, cmd.Result = findUserByID(cmd.ID)
+				findUserByID(cmd.ID, cmd.Result)
+
 			case "FindUser":
-				cmd.User, cmd.Result = findUser(cmd.Session)
+				findUser(cmd.Session, cmd.Result)
 			}
-			UserCmd <- cmd
 		}
 	}
 }
 
 // add user
-func addUser(id uint32, data *User) error {
+func addUser(id uint32, data *User, result chan *CmdResult) {
+	sResult := <-result
+	sResult.Err = nil
+
 	UserList[id] = data
-	return nil
+
+	result <- sResult
 }
 
 // add user
-func listUser() error {
+func listUser(result chan *CmdResult) {
+	sResult := <-result
+	sResult.Err = nil
+
 	var str string
 	for _, ur := range UserList {
 		data, _ := json.Marshal(ur)
 		str += string(data) + "\r\n"
 	}
 	fmt.Println(str)
-	return nil
+
+	result <- sResult
 }
 
 // add user
-func delUser(id uint32) error {
+func delUser(id uint32, result chan *CmdResult) {
+	sResult := <-result
+	sResult.Err = nil
+
 	delete(UserList, id)
-	return nil
+
+	result <- sResult
 }
 
 // chech
-func checkUser() error {
+func checkUser(result chan *CmdResult) {
+	sResult := <-result
+	sResult.Err = nil
+
 	for _, ur := range UserList {
 		if (ur.Data.Status == _LogOff && time.Now().After(ur.Data.LogoutTime.Add(30*time.Second))) ||
 			(time.Now().After(ur.KeepaliveTime.Add(300 * time.Second))) {
+			// session closing
 			ur.Session.Close()
 			/*
 				// channel leave proc
@@ -94,23 +120,35 @@ func checkUser() error {
 			*/
 		}
 	}
-	return nil
+	result <- sResult
 }
 
-func findUserByID(id uint32) (*User, error) {
+func findUserByID(id uint32, result chan *CmdResult) {
+	sResult := <-result
+	sResult.Data = nil
+	sResult.Err = errors.New("not find user id")
+
 	for _, ur := range UserList {
 		if ur.Data.ID == id {
-			return ur, nil
+			sResult.Data = ur
+			sResult.Err = nil
+			break
 		}
 	}
-	return nil, errors.New("not found user id")
+	result <- sResult
 }
 
-func findUser(session *network.Session) (*User, error) {
+func findUser(session *network.Session, result chan *CmdResult) {
+	sResult := <-result
+	sResult.Data = nil
+	sResult.Err = errors.New("not find user session")
+
 	for _, ur := range UserList {
 		if ur.Session == session {
-			return ur, nil
+			sResult.Data = ur
+			sResult.Err = nil
+			break
 		}
 	}
-	return nil, errors.New("not find user session")
+	result <- sResult
 }

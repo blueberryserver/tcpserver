@@ -16,12 +16,11 @@ var ChannelList map[uint32]*Channel
 
 // cmd
 type ChCmdData struct {
-	Cmd     string `json:"cmd"`
-	No      uint32 `json:"no"`
-	Result  error  `json:"result"`
-	User    *User  `json:"user"`
-	UserID  uint32 `json:"userid"`
-	Monitor string `json:"monitor"`
+	Cmd    string `json:"cmd"`
+	No     uint32 `json:"no"`
+	User   *User  `json:"user"`
+	UserID uint32 `json:"userid"`
+	Result chan *CmdResult
 }
 
 // go routine by channel commuity
@@ -33,21 +32,21 @@ func ChannelProcFunc() {
 
 			switch cmd.Cmd {
 			case "LoadCh":
-				cmd.Result = loadCh()
+				loadCh(cmd.Result)
 			case "EnterCh":
-				cmd.Result = enterCh(cmd.No, cmd.User)
+				enterCh(cmd.No, cmd.User, cmd.Result)
 			case "LeaveCh":
-				cmd.Result = leaveCh(cmd.User)
+				leaveCh(cmd.User, cmd.Result)
 			case "ListCh":
-				cmd.Result = listCh(&cmd.Monitor)
+				listCh(cmd.Result)
 			}
-			ChCmd <- cmd
 		}
 	}
 }
 
 //
-func loadCh() error {
+func loadCh(result chan *CmdResult) {
+	sResult := <-result
 	ChannelList = make(map[uint32]*Channel)
 
 	var cursor uint64
@@ -56,7 +55,9 @@ func loadCh() error {
 	outputs, cursor, err := rmchRedisClient.HScan("blue_server.ch.json", cursor, "", 10).Result()
 	if err != nil {
 		log.Println(err)
-		return err
+		sResult.Err = err
+		result <- sResult
+		return
 	}
 
 	for i := 0; i < len(outputs); i += 2 {
@@ -71,12 +72,16 @@ func loadCh() error {
 			members: make(map[uint32]*User),
 		}
 	}
-	return nil
+	sResult.Err = nil
+	result <- sResult
 }
 
-func enterCh(no uint32, user *User) error {
+func enterCh(no uint32, user *User, result chan *CmdResult) {
+	sResult := <-result
 	if int(no) > len(ChannelList) || no < 0 {
-		return errors.New("invalid channel number")
+		sResult.Err = errors.New("invalid channel number")
+		result <- sResult
+		return
 	}
 	log.Println("Enter channel no:", no, "user:", user.Data.Name)
 	ChannelList[no].members[user.Data.ID] = user
@@ -84,10 +89,12 @@ func enterCh(no uint32, user *User) error {
 	if no != 0 {
 		user.Data.ChNo = no
 	}
-	return nil
+	sResult.Err = nil
+	result <- sResult
 }
 
-func leaveCh(user *User) error {
+func leaveCh(user *User, result chan *CmdResult) {
+	sResult := <-result
 	log.Println("Leave channel no:", user.Data.ChNo, "user:", user.Data.Name, "member count:", len(ChannelList[0].members))
 
 	//leave defualt channel
@@ -99,25 +106,30 @@ func leaveCh(user *User) error {
 		delete(ChannelList[user.Data.ChNo].members, user.Data.ID)
 		user.Data.ChNo = 0
 	}
-	return nil
+	sResult.Err = nil
+	result <- sResult
 }
 
-func listCh(monitor *string) error {
+func listCh(result chan *CmdResult) {
+	sResult := <-result
+	var monitor string
 	for i := 0; i < len(ChannelList); i++ {
 		if ChannelList[uint32(i)] == nil {
 			log.Println("monitor empty " + strconv.Itoa(i))
 			continue
 		}
 
-		*monitor += fmt.Sprintln("<p>Channel No: " + strconv.Itoa(int(ChannelList[uint32(i)].data.ChNo)) + " Type: " +
+		monitor += fmt.Sprintln("<p>Channel No: " + strconv.Itoa(int(ChannelList[uint32(i)].data.ChNo)) + " Type: " +
 			ChTypeName[ChannelList[uint32(i)].data.ChType] + " Limit: " +
 			strconv.Itoa(int(ChannelList[uint32(i)].data.ChLimit)) + "</p>")
 
 		for _, ur := range ChannelList[uint32(i)].members {
-			*monitor += "<p><blockquote>"
-			*monitor += fmt.Sprintf("User: %v", ur.Data)
-			*monitor += "</blockquote>"
+			monitor += "<p><blockquote>"
+			monitor += fmt.Sprintf("User: %v", ur.Data)
+			monitor += "</blockquote>"
 		}
 	}
-	return nil
+	sResult.Data = monitor
+	sResult.Err = nil
+	result <- sResult
 }
