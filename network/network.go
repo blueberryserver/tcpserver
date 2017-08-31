@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/binary"
+	_ "fmt"
 	"log"
 	"net"
 	"syscall"
@@ -129,11 +130,11 @@ func RecvHandler(server *NetServer, session *Session) {
 }
 
 func (server *NetServer) handlerRecv(session *Session) {
-
 	data := make([]byte, 4096)
+	var pos int
 
 	for {
-		n, err := session._conn.Read(data)
+		n, err := session._conn.Read(data[pos:])
 		if err != nil {
 			if err != syscall.EINVAL {
 
@@ -148,22 +149,44 @@ func (server *NetServer) handlerRecv(session *Session) {
 		}
 
 		// protocol parsing
-		server.packetParsing(session, data, n)
+		pos = int(server.packetParsing(session, data, n))
+
+		if int(pos) < n {
+			remind := data[pos:]
+			copy(data, remind)
+			pos = n - pos
+		} else {
+			pos = 0
+		}
 	}
 }
 
-func (server *NetServer) packetParsing(session *Session, data []byte, bytes int) {
+func (server *NetServer) packetParsing(session *Session, data []byte, bytes int) uint16 {
 	//fmt.Printf("server recv sid:%d bytes:%d\r\n", session._id, bytes)
-	length := binary.LittleEndian.Uint16(data[:2])
-	msgID := binary.LittleEndian.Uint16(data[2:4])
-	body := data[4:]
+	var pos uint16
+	for {
+		if uint16(bytes)-pos < 4 {
+			break
+		}
+		length := binary.LittleEndian.Uint16(data[pos : pos+2])
+		msgID := binary.LittleEndian.Uint16(data[pos+2 : pos+4])
 
-	if server._handler[int32(msgID)] == nil {
-		log.Println("server not find handler msgid:", msgID)
-		return
+		if uint16(bytes)-pos < length {
+			break
+		}
+		body := data[pos+4 : pos+length]
+		if server._handler[int32(msgID)] == nil {
+			log.Println("server not find handler msgid:", msgID)
+			return pos
+		}
+
+		server._handler[int32(msgID)].Execute(session, body, length-4)
+		pos = pos + length
+		if pos < uint16(bytes) {
+			log.Println("multi packet parsing")
+		}
 	}
-
-	server._handler[int32(msgID)].Execute(session, body, length-4)
+	return pos
 }
 
 //net client
@@ -224,33 +247,61 @@ func (client *NetClient) handlerConnect(session *Session) {
 
 func (client *NetClient) handlerRecv(session *Session) {
 
+	log.Println("recving")
 	data := make([]byte, 4096)
+	var pos int
 
 	for {
-		n, err := session._conn.Read(data)
+		n, err := session._conn.Read(data[pos:])
 		if err != nil {
-			//fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
 		// protocol parsing
-		client.packetParsing(session, data, n)
+		pos = int(client.packetParsing(session, data, n))
+
+		if int(pos) < n {
+			log.Println("parsing remind")
+			remind := data[pos:]
+			copy(data, remind)
+			pos = n - pos
+		} else {
+			pos = 0
+		}
 	}
 }
 
-func (client *NetClient) packetParsing(session *Session, data []byte, bytes int) {
-	//fmt.Println("NetClient Recv Data")
-	//fmt.Println(string(data[:bytes]))
-	length := binary.LittleEndian.Uint16(data[:2])
-	msgID := binary.LittleEndian.Uint16(data[2:4])
-	body := data[4:]
+func (client *NetClient) packetParsing(session *Session, data []byte, bytes int) uint16 {
+	//fmt.Println("NetClient Recv Data len:", bytes )
 
-	if client._handler[int32(msgID)] == nil {
-		log.Println("client not find handler msgid:", msgID)
-		return
+	var pos uint16
+	for {
+		if uint16(bytes)-pos < 4 {
+			break
+		}
+		length := binary.LittleEndian.Uint16(data[pos : pos+2])
+		msgID := binary.LittleEndian.Uint16(data[pos+2 : pos+4])
+
+		if uint16(bytes)-pos < length {
+			break
+		}
+		body := data[pos+4 : pos+length]
+
+		//fmt.Println("length:", length, " id:", msgID )
+
+		if client._handler[int32(msgID)] == nil {
+			log.Println("client not find handler msgid:", msgID)
+			return pos
+		}
+
+		client._handler[int32(msgID)].Execute(session, body, length-4)
+		pos = pos + length
+		if pos < uint16(bytes) {
+			log.Println("multi packet parsing")
+		}
 	}
-
-	client._handler[int32(msgID)].Execute(session, body, length-4)
+	return pos
 }
 
 //

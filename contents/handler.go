@@ -389,7 +389,7 @@ func (m ReqEnterCh) Execute(session *network.Session, data []byte, length uint16
 	log.Printf("Server ReqEnterCh msg: %d %s\r\n", m.msgID, req.String())
 
 	user, err := FindUser(session)
-	if err != nil {
+	if err != nil || user == nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
 		ans := &msg.EnterChAns{
@@ -448,7 +448,7 @@ func (m ReqEnterRm) Execute(session *network.Session, data []byte, length uint16
 
 	// find user
 	user, err := FindUser(session)
-	if err != nil {
+	if err != nil || user == nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
 		ans := &msg.EnterRmAns{
@@ -519,7 +519,7 @@ func (m ReqLeaveRm) Execute(session *network.Session, data []byte, length uint16
 
 	// find user
 	user, err := FindUser(session)
-	if err != nil {
+	if err != nil || user == nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
 		ans := &msg.LeaveRmAns{
@@ -584,7 +584,7 @@ func (m ReqListRm) Execute(session *network.Session, data []byte, length uint16)
 
 	// find user
 	user, err := FindUser(session)
-	if err != nil {
+	if err != nil || user == nil {
 		log.Println(err)
 		errCode := msg.ErrorCode(msg.ErrorCode_ERR_SYSTEM_FAIL)
 		ans := &msg.ListRmAns{

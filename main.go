@@ -33,6 +33,7 @@ func main() {
 		return
 	}
 
+	_, _ = time.LoadLocation("Asia/Seoul")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	logfile := "log_" + time.Now().Format("2006_01_02_15") + ".txt"
